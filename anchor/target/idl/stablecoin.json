@@ -1,0 +1,1073 @@
+{
+  "address": "3Ad1BL6hdFP4ndQ3dKhFbLp56roCK76gs3mvVNJHPdYY",
+  "metadata": {
+    "name": "stablecoin",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "fission",
+      "discriminator": [
+        106,
+        52,
+        111,
+        46,
+        205,
+        20,
+        239,
+        82
+      ],
+      "accounts": [
+        {
+          "name": "reactor",
+          "writable": true
+        },
+        {
+          "name": "reactor_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  116,
+                  111,
+                  114,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "reactor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_authority",
+          "signer": true
+        },
+        {
+          "name": "base_vault",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "neutron_mint",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "proton_mint",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "user_base_account",
+          "writable": true
+        },
+        {
+          "name": "user_neutron_account",
+          "writable": true
+        },
+        {
+          "name": "user_proton_account",
+          "writable": true
+        },
+        {
+          "name": "treasury_base_account",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "price_feed",
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount_in",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "fusion",
+      "discriminator": [
+        206,
+        106,
+        177,
+        144,
+        1,
+        151,
+        67,
+        100
+      ],
+      "accounts": [
+        {
+          "name": "reactor",
+          "writable": true
+        },
+        {
+          "name": "reactor_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  116,
+                  111,
+                  114,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "reactor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_authority",
+          "signer": true
+        },
+        {
+          "name": "base_vault",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "neutron_mint",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "proton_mint",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "user_base_account",
+          "writable": true
+        },
+        {
+          "name": "user_neutron_account",
+          "writable": true
+        },
+        {
+          "name": "user_proton_account",
+          "writable": true
+        },
+        {
+          "name": "treasury_base_account",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount_in",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reactor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "reactor_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  116,
+                  111,
+                  114,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "reactor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "base_mint"
+        },
+        {
+          "name": "base_vault",
+          "writable": true
+        },
+        {
+          "name": "neutron_mint"
+        },
+        {
+          "name": "proton_mint"
+        },
+        {
+          "name": "price_feed"
+        },
+        {
+          "name": "treasury_authority"
+        },
+        {
+          "name": "treasury_base_account",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "InitializeParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "set_beta_params",
+      "discriminator": [
+        76,
+        237,
+        59,
+        40,
+        140,
+        213,
+        9,
+        216
+      ],
+      "accounts": [
+        {
+          "name": "reactor",
+          "writable": true
+        },
+        {
+          "name": "treasury_authority",
+          "signer": true,
+          "relations": [
+            "reactor"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "BetaParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "transmute_neutron_to_proton",
+      "discriminator": [
+        5,
+        188,
+        185,
+        108,
+        68,
+        20,
+        20,
+        95
+      ],
+      "accounts": [
+        {
+          "name": "reactor",
+          "writable": true
+        },
+        {
+          "name": "reactor_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  116,
+                  111,
+                  114,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "reactor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_authority",
+          "signer": true
+        },
+        {
+          "name": "base_vault",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "proton_mint",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "neutron_mint",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "user_neutron_account",
+          "writable": true
+        },
+        {
+          "name": "user_proton_account",
+          "writable": true
+        },
+        {
+          "name": "price_feed",
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "neutron_in",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "transmute_proton_to_neutron",
+      "discriminator": [
+        1,
+        2,
+        155,
+        120,
+        201,
+        174,
+        198,
+        91
+      ],
+      "accounts": [
+        {
+          "name": "reactor",
+          "writable": true
+        },
+        {
+          "name": "reactor_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  97,
+                  99,
+                  116,
+                  111,
+                  114,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "reactor"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_authority",
+          "signer": true
+        },
+        {
+          "name": "base_vault",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "proton_mint",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "neutron_mint",
+          "writable": true,
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "user_proton_account",
+          "writable": true
+        },
+        {
+          "name": "user_neutron_account",
+          "writable": true
+        },
+        {
+          "name": "price_feed",
+          "relations": [
+            "reactor"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "proton_in",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Reactor",
+      "discriminator": [
+        23,
+        95,
+        9,
+        66,
+        41,
+        244,
+        37,
+        71
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "BetaParamsSetEvent",
+      "discriminator": [
+        16,
+        110,
+        158,
+        211,
+        182,
+        187,
+        99,
+        84
+      ]
+    },
+    {
+      "name": "FissionEvent",
+      "discriminator": [
+        188,
+        93,
+        41,
+        124,
+        229,
+        122,
+        150,
+        165
+      ]
+    },
+    {
+      "name": "FusionEvent",
+      "discriminator": [
+        236,
+        16,
+        143,
+        70,
+        222,
+        173,
+        223,
+        63
+      ]
+    },
+    {
+      "name": "TransmuteMinusEvent",
+      "discriminator": [
+        74,
+        176,
+        93,
+        198,
+        152,
+        124,
+        255,
+        202
+      ]
+    },
+    {
+      "name": "TransmutePlusEvent",
+      "discriminator": [
+        139,
+        170,
+        99,
+        103,
+        100,
+        19,
+        158,
+        155
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "AmountIsZero",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6001,
+      "name": "MathOverflow",
+      "msg": "Math overflow"
+    },
+    {
+      "code": 6002,
+      "name": "DivisionByZero",
+      "msg": "Division by zero"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidFee",
+      "msg": "Fee must be less than 100% (WAD)"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidTargetReserveRatio",
+      "msg": "Target reserve ratio must be at least 100% (WAD)"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidDecimals",
+      "msg": "Invalid decimals for token; maximum supported is 18"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidMintAuthority",
+      "msg": "Invalid mint authority for program controlled mint"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidVaultAuthority",
+      "msg": "Invalid vault authority"
+    },
+    {
+      "code": 6008,
+      "name": "MintMismatch",
+      "msg": "Token mint mismatch"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidTreasuryAccount",
+      "msg": "Treasury token account is invalid"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidTreasuryAuthority",
+      "msg": "Invalid treasury authority"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidPriceAccount",
+      "msg": "Invalid or mismatched price account"
+    },
+    {
+      "code": 6012,
+      "name": "PriceNotAvailable",
+      "msg": "No recent price available from oracle"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidPriceValue",
+      "msg": "Oracle price is not positive"
+    },
+    {
+      "code": 6014,
+      "name": "AmountTooSmall",
+      "msg": "Amount too small after applying fees or conversions"
+    },
+    {
+      "code": 6015,
+      "name": "ZeroReserve",
+      "msg": "Reserve balance is zero"
+    },
+    {
+      "code": 6016,
+      "name": "ZeroSupply",
+      "msg": "Supply is zero"
+    },
+    {
+      "code": 6017,
+      "name": "AccountDataBorrowFailed",
+      "msg": "Failed to borrow account data"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidTokenAccount",
+      "msg": "Invalid token account data"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidMintAccount",
+      "msg": "Invalid mint account data"
+    },
+    {
+      "code": 6020,
+      "name": "ValueTooLarge",
+      "msg": "Value exceeds supported range"
+    },
+    {
+      "code": 6021,
+      "name": "ExponentTooLarge",
+      "msg": "Exponent exceeds supported range for pow10"
+    },
+    {
+      "code": 6022,
+      "name": "MissingBump",
+      "msg": "Missing PDA bump"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidBetaParam",
+      "msg": "Invalid beta parameters"
+    },
+    {
+      "code": 6024,
+      "name": "InvalidVaultName",
+      "msg": "Invalid vault name"
+    }
+  ],
+  "types": [
+    {
+      "name": "BetaParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "phi0_wad",
+            "type": "u128"
+          },
+          {
+            "name": "phi1_wad",
+            "type": "u128"
+          },
+          {
+            "name": "decay_per_second_wad",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BetaParamsSetEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "reactor",
+            "type": "pubkey"
+          },
+          {
+            "name": "phi0_wad",
+            "type": "u128"
+          },
+          {
+            "name": "phi1_wad",
+            "type": "u128"
+          },
+          {
+            "name": "decay_per_second_wad",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FissionEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "reactor",
+            "type": "pubkey"
+          },
+          {
+            "name": "from_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "base_in",
+            "type": "u64"
+          },
+          {
+            "name": "neutron_minted",
+            "type": "u64"
+          },
+          {
+            "name": "proton_minted",
+            "type": "u64"
+          },
+          {
+            "name": "base_fee_to_treasury",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FusionEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "reactor",
+            "type": "pubkey"
+          },
+          {
+            "name": "from_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "neutron_burned",
+            "type": "u64"
+          },
+          {
+            "name": "proton_burned",
+            "type": "u64"
+          },
+          {
+            "name": "base_out",
+            "type": "u64"
+          },
+          {
+            "name": "base_fee_to_treasury",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializeParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault_name",
+            "type": "string"
+          },
+          {
+            "name": "fission_fee_wad",
+            "type": "u128"
+          },
+          {
+            "name": "fusion_fee_wad",
+            "type": "u128"
+          },
+          {
+            "name": "target_reserve_ratio_wad",
+            "type": "u128"
+          },
+          {
+            "name": "price_feed",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle_program",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Reactor",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority_bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_name",
+            "type": "string"
+          },
+          {
+            "name": "base_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "base_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "neutron_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "proton_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "price_feed",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_base_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "fission_fee_wad",
+            "type": "u128"
+          },
+          {
+            "name": "fusion_fee_wad",
+            "type": "u128"
+          },
+          {
+            "name": "target_reserve_ratio_wad",
+            "type": "u128"
+          },
+          {
+            "name": "beta_phi0_wad",
+            "type": "u128"
+          },
+          {
+            "name": "beta_phi1_wad",
+            "type": "u128"
+          },
+          {
+            "name": "decay_per_second_wad",
+            "type": "u128"
+          },
+          {
+            "name": "decayed_volume_base_wad",
+            "type": "i128"
+          },
+          {
+            "name": "last_decay_ts",
+            "type": "i64"
+          },
+          {
+            "name": "base_decimals",
+            "type": "u8"
+          },
+          {
+            "name": "neutron_decimals",
+            "type": "u8"
+          },
+          {
+            "name": "proton_decimals",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TransmuteMinusEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "reactor",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "neutron_in",
+            "type": "u64"
+          },
+          {
+            "name": "proton_out",
+            "type": "u64"
+          },
+          {
+            "name": "fee_wad",
+            "type": "u128"
+          },
+          {
+            "name": "decayed_volume_base_wad",
+            "type": "i128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TransmutePlusEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "reactor",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "proton_in",
+            "type": "u64"
+          },
+          {
+            "name": "neutron_out",
+            "type": "u64"
+          },
+          {
+            "name": "fee_wad",
+            "type": "u128"
+          },
+          {
+            "name": "decayed_volume_base_wad",
+            "type": "i128"
+          }
+        ]
+      }
+    }
+  ]
+}

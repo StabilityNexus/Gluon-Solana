@@ -1,0 +1,22 @@
+[toolchain]
+package_manager = "yarn"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+Stablecoin = "3Ad1BL6hdFP4ndQ3dKhFbLp56roCK76gs3mvVNJHPdYY"
+
+[programs.devnet]
+Stablecoin = "3Ad1BL6hdFP4ndQ3dKhFbLp56roCK76gs3mvVNJHPdYY"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "cd .. && npm run test:anchor"
