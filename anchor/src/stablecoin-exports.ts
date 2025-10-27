@@ -22,9 +22,9 @@ export function getStablecoinProgram(provider: AnchorProvider, address?: PublicK
 export function getStablecoinProgramId(cluster: Cluster) {
   switch (cluster) {
     case 'devnet':
-      return new PublicKey('3Ad1BL6hdFP4ndQ3dKhFbLp56roCK76gs3mvVNJHPdYY')
+      return new PublicKey('AXtZmZ41Eq7NusPoEbFw2k4haaXHQxBrCrcg4y1oW7Eh')
     case 'testnet':
-    // case 'localnet':3Ad1BL6hdFP4ndQ3dKhFbLp56roCK76gs3mvVNJHPdYY
+    // case 'localnet':AXtZmZ41Eq7NusPoEbFw2k4haaXHQxBrCrcg4y1oW7Eh
     //   return new PublicKey('mhUXuHZ9P1sMyT9jUJQ1EQqgVgqTehyJasCntW6seJR')
     case 'mainnet-beta':
     default:

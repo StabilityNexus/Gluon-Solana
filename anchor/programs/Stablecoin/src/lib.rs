@@ -4,7 +4,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program_pack::Pack;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
-use pyth_sdk_solana::state::SolanaPriceAccount;
+use pyth_solana_receiver_sdk::price_update::{get_feed_id_from_hex, PriceUpdateV2};
 use spl_token::state::{Account as SplTokenAccount, Mint as SplMint};
 
 mod uint_types {
@@ -13,15 +13,12 @@ mod uint_types {
         pub struct U256(4);
     }
 }
-
 use uint_types::U256;
 
-declare_id!("3Ad1BL6hdFP4ndQ3dKhFbLp56roCK76gs3mvVNJHPdYY");
+declare_id!("AXtZmZ41Eq7NusPoEbFw2k4haaXHQxBrCrcg4y1oW7Eh");
 
 const WAD: u128 = 1_000_000_000_000_000_000;
-const PEG_WAD: u128 = WAD;
-const PYTH_MAGIC: u32 = 0xa1b2c3d4;
-const ACCOUNT_TYPE_PRODUCT: u32 = 2;
+const MAXIMUM_AGE: u64 = 60; // max staleness in seconds for oracle data
 
 #[program]
 pub mod stablecoin {
@@ -36,24 +33,26 @@ pub mod stablecoin {
                 && params.vault_name.len() <= Reactor::MAX_VAULT_NAME,
             ErrorCode::InvalidVaultName
         );
+        require!(
+            !params.price_feed_id.trim().is_empty()
+                && params.price_feed_id.len() <= Reactor::MAX_PRICE_FEED_ID,
+            ErrorCode::InvalidPriceFeedId
+        );
         require!(params.fission_fee_wad < WAD, ErrorCode::InvalidFee);
         require!(params.fusion_fee_wad < WAD, ErrorCode::InvalidFee);
+
+        // Gluon Z: r* > 1.0
+        require!(params.r_star_wad > WAD, ErrorCode::InvalidTargetReserveRatio);
+
+        // kept for UI even if not used in math anymore
         require!(
             params.target_reserve_ratio_wad >= WAD,
             ErrorCode::InvalidTargetReserveRatio
         );
+
         require!(
             ctx.accounts.treasury_authority.key() != Pubkey::default(),
             ErrorCode::InvalidTreasuryAuthority
-        );
-        require_keys_eq!(
-            ctx.accounts.price_feed.key(),
-            params.price_feed,
-            ErrorCode::InvalidPriceAccount
-        );
-        require!(
-            ctx.accounts.price_feed.owner == &params.oracle_program,
-            ErrorCode::InvalidPriceAccount
         );
 
         let base_decimals = ctx.accounts.base_mint.decimals;
@@ -111,18 +110,26 @@ pub mod stablecoin {
         reactor.base_vault = ctx.accounts.base_vault.key();
         reactor.neutron_mint = ctx.accounts.neutron_mint.key();
         reactor.proton_mint = ctx.accounts.proton_mint.key();
-        reactor.price_feed = params.price_feed;
-        reactor.oracle_program = params.oracle_program;
+        reactor.price_feed_id = params.price_feed_id;
         reactor.treasury_authority = ctx.accounts.treasury_authority.key();
         reactor.treasury_base_account = ctx.accounts.treasury_base_account.key();
+
         reactor.fission_fee_wad = params.fission_fee_wad;
         reactor.fusion_fee_wad = params.fusion_fee_wad;
+
+        // kept for optics / UI
         reactor.target_reserve_ratio_wad = params.target_reserve_ratio_wad;
+
+        // Gluon Z critical reserve ratio r*
+        reactor.r_star_wad = params.r_star_wad;
+
+        // β fee params start at 0 and can be set later
         reactor.beta_phi0_wad = 0;
         reactor.beta_phi1_wad = 0;
         reactor.decay_per_second_wad = WAD;
         reactor.decayed_volume_base_wad = 0;
         reactor.last_decay_ts = clock.unix_timestamp;
+
         reactor.base_decimals = base_decimals;
         reactor.neutron_decimals = neutron_decimals;
         reactor.proton_decimals = proton_decimals;
@@ -156,17 +163,83 @@ pub mod stablecoin {
         Ok(())
     }
 
+    /// Fission: user deposits base, gets neutrons+protons in proportion
+    /// to pre-fission S◦/R and S•/R, minus Φ↓ fee.
+    /// Bootstrap logic kept as-is for first deposit.
     pub fn fission(ctx: Context<Fission>, amount_in: u64) -> Result<()> {
         require!(amount_in > 0, ErrorCode::AmountIsZero);
-        let clock = Clock::get()?;
         let reactor = &mut ctx.accounts.reactor;
 
-        require_keys_eq!(
-            ctx.accounts.price_feed.key(),
-            reactor.price_feed,
-            ErrorCode::InvalidPriceAccount
+        // --- 1) Snapshot pre-fission R, S◦, S• ---
+        let reserve_before_tokens = load_token_account(&ctx.accounts.base_vault)?.amount;
+
+        let neutron_mint_state = load_mint(&ctx.accounts.neutron_mint)?;
+        let proton_mint_state = load_mint(&ctx.accounts.proton_mint)?;
+        let s_circ_tokens = neutron_mint_state.supply;
+        let s_bull_tokens = proton_mint_state.supply;
+
+        let m_wad = tokens_to_wad(amount_in, reactor.base_decimals)?;
+
+        // --- 2) fee Φ↓ ---
+        let fee_wad = mul_div(m_wad, reactor.fission_fee_wad, WAD)?;
+        let fee_tokens = wad_to_tokens(fee_wad, reactor.base_decimals)?;
+        let net_tokens = amount_in
+            .checked_sub(fee_tokens)
+            .ok_or(error!(ErrorCode::MathOverflow))?;
+        require!(net_tokens > 0, ErrorCode::AmountTooSmall);
+
+        let net_wad = tokens_to_wad(net_tokens, reactor.base_decimals)?;
+
+        // --- 3) BOOTSTRAP or NORMAL ---
+        let (neutron_out_tokens, proton_out_tokens) =
+            if reserve_before_tokens == 0 && s_circ_tokens == 0 && s_bull_tokens == 0 {
+                // bootstrap policy (your custom choice)
+                const BOOTSTRAP_RESERVE_RATIO_WAD: u128 = WAD * 4; // 400%
+
+                let neutron_out_wad = mul_div(net_wad, WAD, BOOTSTRAP_RESERVE_RATIO_WAD)?;
+                let proton_out_wad = mul_div(net_wad, WAD, BOOTSTRAP_RESERVE_RATIO_WAD)?;
+
+                let neutron_out =
+                    wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
+                let proton_out =
+                    wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
+
+                (neutron_out, proton_out)
+            } else {
+                // normal Gluon Z fission
+                let r_before_wad =
+                    tokens_to_wad(reserve_before_tokens, reactor.base_decimals)?;
+                require!(r_before_wad > 0, ErrorCode::ZeroReserve);
+
+                let s_circ_wad =
+                    tokens_to_wad(s_circ_tokens, reactor.neutron_decimals)?;
+                let s_bull_wad =
+                    tokens_to_wad(s_bull_tokens, reactor.proton_decimals)?;
+
+                let neutron_out_wad = if s_circ_wad == 0 {
+                    0
+                } else {
+                    mul_div(net_wad, s_circ_wad, r_before_wad)?
+                };
+                let proton_out_wad = if s_bull_wad == 0 {
+                    0
+                } else {
+                    mul_div(net_wad, s_bull_wad, r_before_wad)?
+                };
+
+                let neutron_out =
+                    wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
+                let proton_out =
+                    wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
+                (neutron_out, proton_out)
+            };
+
+        require!(
+            neutron_out_tokens > 0 || proton_out_tokens > 0,
+            ErrorCode::AmountTooSmall
         );
 
+        // --- 4) Move user's base into vault
         token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -179,27 +252,7 @@ pub mod stablecoin {
             amount_in,
         )?;
 
-        let amount_in_wad = tokens_to_wad(amount_in, reactor.base_decimals)?;
-        let fee_wad = mul_div(amount_in_wad, reactor.fission_fee_wad, WAD)?;
-        let fee_tokens = wad_to_tokens(fee_wad, reactor.base_decimals)?;
-        let net_tokens = amount_in
-            .checked_sub(fee_tokens)
-            .ok_or(error!(ErrorCode::MathOverflow))?;
-        require!(net_tokens > 0, ErrorCode::AmountTooSmall);
-
-        let net_wad = tokens_to_wad(net_tokens, reactor.base_decimals)?;
-        let linked_price_key = find_linked_price_key(&ctx.accounts.price_feed)?;
-        let linked_price_account = linked_price_key.and_then(|key| {
-            ctx.remaining_accounts
-                .iter()
-                .find(|account| account.key() == key)
-        });
-        let price_base_wad = reactor.get_base_price_in_pegged_asset(
-            &ctx.accounts.price_feed,
-            linked_price_account,
-            clock.unix_timestamp,
-        )?;
-
+        // --- 5) Send Φ↓ fee to treasury
         if fee_tokens > 0 {
             let reactor_key = reactor.key();
             let bump = [reactor.authority_bump];
@@ -219,22 +272,11 @@ pub mod stablecoin {
             )?;
         }
 
-        let neutron_out_wad = mul_div(net_wad, price_base_wad, reactor.target_reserve_ratio_wad)?;
-        let net_over_r = mul_div(net_wad, WAD, reactor.target_reserve_ratio_wad)?;
-        let proton_out_wad = net_wad
-            .checked_sub(net_over_r)
-            .ok_or(error!(ErrorCode::MathOverflow))?;
-
-        let neutron_out_tokens = wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
-        let proton_out_tokens = wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
-        require!(
-            neutron_out_tokens > 0 || proton_out_tokens > 0,
-            ErrorCode::AmountTooSmall
-        );
-
+        // --- 6) Mint neutron+proton outputs
         let reactor_key = reactor.key();
         let bump = [reactor.authority_bump];
-        let signer_seeds: &[&[u8]] = &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
+        let signer_seeds: &[&[u8]] =
+            &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
 
         if neutron_out_tokens > 0 {
             token::mint_to(
@@ -250,7 +292,6 @@ pub mod stablecoin {
                 neutron_out_tokens,
             )?;
         }
-
         if proton_out_tokens > 0 {
             token::mint_to(
                 CpiContext::new_with_signer(
@@ -278,6 +319,8 @@ pub mod stablecoin {
         Ok(())
     }
 
+    /// Fusion: user returns the exact pro-rata bundle of neutrons+protons,
+    /// gets back base minus Φ↑.
     pub fn fusion(ctx: Context<Fusion>, amount_in: u64) -> Result<()> {
         require!(amount_in > 0, ErrorCode::AmountIsZero);
         let reactor = &mut ctx.accounts.reactor;
@@ -294,14 +337,19 @@ pub mod stablecoin {
 
         let m_wad = tokens_to_wad(amount_in, reactor.base_decimals)?;
         let reserve_wad = tokens_to_wad(reserve_tokens, reactor.base_decimals)?;
-        let neutron_supply_wad = tokens_to_wad(neutron_supply_tokens, reactor.neutron_decimals)?;
-        let proton_supply_wad = tokens_to_wad(proton_supply_tokens, reactor.proton_decimals)?;
+        let neutron_supply_wad =
+            tokens_to_wad(neutron_supply_tokens, reactor.neutron_decimals)?;
+        let proton_supply_wad =
+            tokens_to_wad(proton_supply_tokens, reactor.proton_decimals)?;
 
+        // burn shares m * S / R
         let n_burn_wad = mul_div(m_wad, neutron_supply_wad, reserve_wad)?;
         let p_burn_wad = mul_div(m_wad, proton_supply_wad, reserve_wad)?;
 
-        let neutron_burn_tokens = wad_to_tokens(n_burn_wad, reactor.neutron_decimals)?;
-        let proton_burn_tokens = wad_to_tokens(p_burn_wad, reactor.proton_decimals)?;
+        let neutron_burn_tokens =
+            wad_to_tokens(n_burn_wad, reactor.neutron_decimals)?;
+        let proton_burn_tokens =
+            wad_to_tokens(p_burn_wad, reactor.proton_decimals)?;
         require!(
             neutron_burn_tokens > 0 && proton_burn_tokens > 0,
             ErrorCode::AmountTooSmall
@@ -318,7 +366,6 @@ pub mod stablecoin {
             ),
             neutron_burn_tokens,
         )?;
-
         token::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -331,6 +378,7 @@ pub mod stablecoin {
             proton_burn_tokens,
         )?;
 
+        // payout base less Φ↑
         let fee_wad = mul_div(m_wad, reactor.fusion_fee_wad, WAD)?;
         let fee_tokens = wad_to_tokens(fee_wad, reactor.base_decimals)?;
         let net_tokens = amount_in
@@ -340,7 +388,8 @@ pub mod stablecoin {
 
         let reactor_key = reactor.key();
         let bump = [reactor.authority_bump];
-        let signer_seeds: &[&[u8]] = &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
+        let signer_seeds: &[&[u8]] =
+            &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
 
         token::transfer(
             CpiContext::new_with_signer(
@@ -382,7 +431,14 @@ pub mod stablecoin {
         Ok(())
     }
 
-    pub fn transmute_proton_to_neutron(ctx: Context<TransmutePlus>, proton_in: u64) -> Result<()> {
+    /// β⁺: proton -> neutron.
+    /// Burn protons, value them in base using P•,
+    /// apply (1 - φβ+(τ)),
+    /// then buy neutrons at P◦.
+    pub fn transmute_proton_to_neutron(
+        ctx: Context<TransmutePlus>,
+        proton_in: u64,
+    ) -> Result<()> {
         require!(proton_in > 0, ErrorCode::AmountIsZero);
         let clock = Clock::get()?;
         let reactor = &mut ctx.accounts.reactor;
@@ -391,22 +447,27 @@ pub mod stablecoin {
         let proton_supply_tokens = load_mint(&ctx.accounts.proton_mint)?.supply;
         let neutron_supply_tokens = load_mint(&ctx.accounts.neutron_mint)?.supply;
 
-        let linked_price_key = find_linked_price_key(&ctx.accounts.price_feed)?;
-        let linked_price_account = linked_price_key.and_then(|key| {
-            ctx.remaining_accounts
-                .iter()
-                .find(|account| account.key() == key)
-        });
-        let base_price_wad = reactor.get_base_price_in_pegged_asset(
-            &ctx.accounts.price_feed,
-            linked_price_account,
-            clock.unix_timestamp,
-        )?;
-        let proton_price_base_wad =
-            reactor.proton_price_in_base(reserve_tokens, proton_supply_tokens)?;
-        let neutron_price_base_wad =
-            reactor.neutron_price_in_base(reserve_tokens, neutron_supply_tokens, base_price_wad)?;
+        // Oracle neutron target peg -> base
+        let price_update = &ctx.accounts.price_update;
+        let feed_id = get_feed_id_from_hex(&reactor.price_feed_id)?;
+        let price =
+            price_update.get_price_no_older_than(&clock, MAXIMUM_AGE, &feed_id)?;
+        let base_price_wad =
+            convert_pyth_price_to_wad(price.price, price.exponent)?;
 
+        let proton_price_base_wad = reactor.proton_price_in_base(
+            reserve_tokens,
+            proton_supply_tokens,
+            neutron_supply_tokens,
+            base_price_wad,
+        )?;
+        let neutron_price_base_wad = reactor.neutron_price_in_base(
+            reserve_tokens,
+            neutron_supply_tokens,
+            base_price_wad,
+        )?;
+
+        // burn user's protons first
         token::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -419,23 +480,34 @@ pub mod stablecoin {
             proton_in,
         )?;
 
+        // gross_base_wad = value of burned protons in base
         let proton_in_wad = tokens_to_wad(proton_in, reactor.proton_decimals)?;
         let gross_base_wad = mul_div(proton_in_wad, proton_price_base_wad, WAD)?;
 
+        // decay ledger BEFORE fee calc (advance time)
         reactor.decay_ledger(clock.unix_timestamp)?;
+
+        // β⁺ fee φβ+(τ)
         let reserve_wad = tokens_to_wad(reserve_tokens, reactor.base_decimals)?;
         let fee_wad = reactor.beta_plus_fee(reserve_wad)?;
         let fee_factor = WAD
             .checked_sub(fee_wad)
             .ok_or(error!(ErrorCode::MathOverflow))?;
+
+        // apply fee
         let net_base_wad = mul_div(gross_base_wad, fee_factor, WAD)?;
+
+        // buy neutrons at P◦
         let neutron_out_wad = mul_div(net_base_wad, WAD, neutron_price_base_wad)?;
-        let neutron_out_tokens = wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
+        let neutron_out_tokens =
+            wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
         require!(neutron_out_tokens > 0, ErrorCode::AmountTooSmall);
 
+        // mint neutrons
         let reactor_key = reactor.key();
         let bump = [reactor.authority_bump];
-        let signer_seeds: &[&[u8]] = &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
+        let signer_seeds: &[&[u8]] =
+            &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
 
         token::mint_to(
             CpiContext::new_with_signer(
@@ -450,6 +522,7 @@ pub mod stablecoin {
             neutron_out_tokens,
         )?;
 
+        // record signed volume AFTER fee calculation (as +gross_base)
         let gross_base_i128 = gross_base_wad_to_i128(gross_base_wad)?;
         reactor.decayed_volume_base_wad = reactor
             .decayed_volume_base_wad
@@ -468,6 +541,10 @@ pub mod stablecoin {
         Ok(())
     }
 
+    /// β⁻: neutron -> proton.
+    /// Burn neutrons, value them in base using P◦,
+    /// apply (1 - φβ-(τ)),
+    /// then buy protons at P•.
     pub fn transmute_neutron_to_proton(
         ctx: Context<TransmuteMinus>,
         neutron_in: u64,
@@ -480,22 +557,27 @@ pub mod stablecoin {
         let proton_supply_tokens = load_mint(&ctx.accounts.proton_mint)?.supply;
         let neutron_supply_tokens = load_mint(&ctx.accounts.neutron_mint)?.supply;
 
-        let linked_price_key = find_linked_price_key(&ctx.accounts.price_feed)?;
-        let linked_price_account = linked_price_key.and_then(|key| {
-            ctx.remaining_accounts
-                .iter()
-                .find(|account| account.key() == key)
-        });
-        let base_price_wad = reactor.get_base_price_in_pegged_asset(
-            &ctx.accounts.price_feed,
-            linked_price_account,
-            clock.unix_timestamp,
-        )?;
-        let proton_price_base_wad =
-            reactor.proton_price_in_base(reserve_tokens, proton_supply_tokens)?;
-        let neutron_price_base_wad =
-            reactor.neutron_price_in_base(reserve_tokens, neutron_supply_tokens, base_price_wad)?;
+        // Oracle neutron target peg -> base
+        let price_update = &ctx.accounts.price_update;
+        let feed_id = get_feed_id_from_hex(&reactor.price_feed_id)?;
+        let price =
+            price_update.get_price_no_older_than(&clock, MAXIMUM_AGE, &feed_id)?;
+        let base_price_wad =
+            convert_pyth_price_to_wad(price.price, price.exponent)?;
 
+        let proton_price_base_wad = reactor.proton_price_in_base(
+            reserve_tokens,
+            proton_supply_tokens,
+            neutron_supply_tokens,
+            base_price_wad,
+        )?;
+        let neutron_price_base_wad = reactor.neutron_price_in_base(
+            reserve_tokens,
+            neutron_supply_tokens,
+            base_price_wad,
+        )?;
+
+        // burn user's neutrons
         token::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -508,23 +590,34 @@ pub mod stablecoin {
             neutron_in,
         )?;
 
+        // gross_base_wad = value of burned neutrons in base
         let neutron_in_wad = tokens_to_wad(neutron_in, reactor.neutron_decimals)?;
         let gross_base_wad = mul_div(neutron_in_wad, neutron_price_base_wad, WAD)?;
 
+        // decay ledger BEFORE fee calc (advance time)
         reactor.decay_ledger(clock.unix_timestamp)?;
+
+        // β⁻ fee φβ-(τ)
         let reserve_wad = tokens_to_wad(reserve_tokens, reactor.base_decimals)?;
         let fee_wad = reactor.beta_minus_fee(reserve_wad)?;
         let fee_factor = WAD
             .checked_sub(fee_wad)
             .ok_or(error!(ErrorCode::MathOverflow))?;
+
+        // apply fee
         let net_base_wad = mul_div(gross_base_wad, fee_factor, WAD)?;
+
+        // buy protons at P•
         let proton_out_wad = mul_div(net_base_wad, WAD, proton_price_base_wad)?;
-        let proton_out_tokens = wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
+        let proton_out_tokens =
+            wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
         require!(proton_out_tokens > 0, ErrorCode::AmountTooSmall);
 
+        // mint protons
         let reactor_key = reactor.key();
         let bump = [reactor.authority_bump];
-        let signer_seeds: &[&[u8]] = &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
+        let signer_seeds: &[&[u8]] =
+            &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
 
         token::mint_to(
             CpiContext::new_with_signer(
@@ -539,6 +632,7 @@ pub mod stablecoin {
             proton_out_tokens,
         )?;
 
+        // record signed volume AFTER fee calculation (as -gross_base)
         let gross_base_i128 = gross_base_wad_to_i128(gross_base_wad)?;
         reactor.decayed_volume_base_wad = reactor
             .decayed_volume_base_wad
@@ -558,14 +652,18 @@ pub mod stablecoin {
     }
 }
 
+// --------------------------------------------
+// Types
+// --------------------------------------------
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct InitializeParams {
     pub vault_name: String,
     pub fission_fee_wad: u128,
     pub fusion_fee_wad: u128,
-    pub target_reserve_ratio_wad: u128,
-    pub price_feed: Pubkey,
-    pub oracle_program: Pubkey,
+    pub target_reserve_ratio_wad: u128, // kept for UI / legacy
+    pub r_star_wad: u128,               // Gluon Z critical reserve ratio r* (>1.0)
+    pub price_feed_id: String,          // Pyth feed ID (hex string)
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -574,6 +672,10 @@ pub struct BetaParams {
     pub phi1_wad: u128,
     pub decay_per_second_wad: u128,
 }
+
+// --------------------------------------------
+// Accounts
+// --------------------------------------------
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -597,8 +699,6 @@ pub struct Initialize<'info> {
     pub neutron_mint: Account<'info, Mint>,
     pub proton_mint: Account<'info, Mint>,
     /// CHECK: validated in handler
-    pub price_feed: AccountInfo<'info>,
-    /// CHECK: validated in handler
     pub treasury_authority: UncheckedAccount<'info>,
     #[account(mut)]
     pub treasury_base_account: Account<'info, TokenAccount>,
@@ -620,7 +720,6 @@ pub struct Fission<'info> {
         has_one = base_vault,
         has_one = neutron_mint,
         has_one = proton_mint,
-        has_one = price_feed,
         has_one = treasury_base_account
     )]
     pub reactor: Account<'info, Reactor>,
@@ -652,8 +751,6 @@ pub struct Fission<'info> {
     /// CHECK: validated in handler via has_one constraint
     #[account(mut)]
     pub treasury_base_account: AccountInfo<'info>,
-    /// CHECK: verified in handler
-    pub price_feed: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -704,8 +801,7 @@ pub struct TransmutePlus<'info> {
         mut,
         has_one = base_vault,
         has_one = proton_mint,
-        has_one = neutron_mint,
-        has_one = price_feed
+        has_one = neutron_mint
     )]
     pub reactor: Account<'info, Reactor>,
     #[account(
@@ -730,8 +826,7 @@ pub struct TransmutePlus<'info> {
     /// CHECK: manually loaded and validated in handler
     #[account(mut)]
     pub user_neutron_account: AccountInfo<'info>,
-    /// CHECK: verified in handler
-    pub price_feed: AccountInfo<'info>,
+    pub price_update: Account<'info, PriceUpdateV2>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -741,8 +836,7 @@ pub struct TransmuteMinus<'info> {
         mut,
         has_one = base_vault,
         has_one = proton_mint,
-        has_one = neutron_mint,
-        has_one = price_feed
+        has_one = neutron_mint
     )]
     pub reactor: Account<'info, Reactor>,
     #[account(
@@ -767,31 +861,40 @@ pub struct TransmuteMinus<'info> {
     /// CHECK: manually loaded and validated in handler
     #[account(mut)]
     pub user_proton_account: AccountInfo<'info>,
-    /// CHECK: verified in handler
-    pub price_feed: AccountInfo<'info>,
+    pub price_update: Account<'info, PriceUpdateV2>,
     pub token_program: Program<'info, Token>,
 }
+
+// --------------------------------------------
+// Reactor account + math helpers
+// --------------------------------------------
 
 #[account]
 pub struct Reactor {
     pub authority_bump: u8,
     pub vault_name: String,
+
     pub base_mint: Pubkey,
     pub base_vault: Pubkey,
     pub neutron_mint: Pubkey,
     pub proton_mint: Pubkey,
-    pub price_feed: Pubkey,
-    pub oracle_program: Pubkey,
+
+    pub price_feed_id: String, // Pyth feed ID (hex string)
+
     pub treasury_authority: Pubkey,
     pub treasury_base_account: Pubkey,
-    pub fission_fee_wad: u128,
-    pub fusion_fee_wad: u128,
-    pub target_reserve_ratio_wad: u128,
-    pub beta_phi0_wad: u128,
-    pub beta_phi1_wad: u128,
-    pub decay_per_second_wad: u128,
-    pub decayed_volume_base_wad: i128,
-    pub last_decay_ts: i64,
+
+    pub fission_fee_wad: u128,            // Φ↓
+    pub fusion_fee_wad: u128,             // Φ↑
+    pub target_reserve_ratio_wad: u128,   // legacy / UI only
+    pub r_star_wad: u128,                 // r* (>1.0), Gluon Z
+    pub beta_phi0_wad: u128,              // Φβ0
+    pub beta_phi1_wad: u128,              // Φβ1
+    pub decay_per_second_wad: u128,       // δ per second in WAD
+
+    pub decayed_volume_base_wad: i128,    // signed Δ(τ)-style rolling volume
+    pub last_decay_ts: i64,               // last unix timestamp we decayed to
+
     pub base_decimals: u8,
     pub neutron_decimals: u8,
     pub proton_decimals: u8,
@@ -799,100 +902,140 @@ pub struct Reactor {
 
 impl Reactor {
     pub const MAX_VAULT_NAME: usize = 64;
+    pub const MAX_PRICE_FEED_ID: usize = 70; // "0x" + hex + buffer
     pub const MAX_DECIMALS: u8 = 18;
     pub const AUTHORITY_PDA_SEED: &'static [u8] = b"reactor-authority";
-    pub const MAX_PRICE_AGE_SECONDS: i64 = 3000000000; 
-    pub const SPACE: usize = 8 + 4 + Self::MAX_VAULT_NAME + 1 + 32 * 8 + 16 * 6 + 16 + 8 + 3 + 5;
+
+    // Rough sizing: 8 (disc) +
+    // 4 + vault_name +
+    // 4 + price_feed_id +
+    // 1 +
+    // 32*7 (pubkeys-ish count) +
+    // 16*7 (u128s) +
+    // 16 (i128) +
+    // 8 (i64) +
+    // 3 (u8s) +
+    // pad
+    pub const SPACE: usize =
+        8 + 4 + Self::MAX_VAULT_NAME
+          + 4 + Self::MAX_PRICE_FEED_ID
+          + 1
+          + 32 * 7
+          + 16 * 7
+          + 16
+          + 8
+          + 3
+          + 32;
 
     fn validate_decimals(&self, decimals: u8) -> Result<()> {
         require!(decimals <= Self::MAX_DECIMALS, ErrorCode::InvalidDecimals);
         Ok(())
     }
 
-    fn q_wad(&self) -> u128 {
-        let q = (WAD * WAD) / self.target_reserve_ratio_wad;
-        if q > WAD {
-            WAD
-        } else {
-            q
-        }
-    }
-
-    fn get_base_price_in_pegged_asset(
-        &self,
-        price_info: &AccountInfo<'_>,
-        alternative_price: Option<&AccountInfo<'_>>,
-        current_ts: i64,
-    ) -> Result<u128> {
-        require!(
-            price_info.key() == self.price_feed,
-            ErrorCode::InvalidPriceAccount
-        );
-        require!(
-            price_info.owner == &self.oracle_program,
-            ErrorCode::InvalidPriceAccount
-        );
-        let price_account = match SolanaPriceAccount::account_info_to_feed(price_info) {
-            Ok(account) => account,
-            Err(_) => {
-                let alternative = alternative_price.ok_or(error!(ErrorCode::InvalidPriceAccount))?;
-                require!(
-                    alternative.owner == &self.oracle_program,
-                    ErrorCode::InvalidPriceAccount
-                );
-                SolanaPriceAccount::account_info_to_feed(alternative)
-                    .map_err(|_| error!(ErrorCode::InvalidPriceAccount))?
-            }
-        };
-        let price = price_account
-            .get_price_no_older_than(current_ts, Self::MAX_PRICE_AGE_SECONDS as u64)
-            .ok_or(error!(ErrorCode::PriceNotAvailable))?;
-        require!(price.price > 0, ErrorCode::InvalidPriceValue);
-        let price_u128 = price.price as u128;
-        if price.expo >= 0 {
-            let scale = pow10(price.expo as u32)?;
-            price_u128
-                .checked_mul(scale)
-                .and_then(|v| v.checked_mul(WAD))
-                .ok_or(error!(ErrorCode::MathOverflow))
-        } else {
-            let scale = pow10((-price.expo) as u32)?;
-            mul_div(price_u128, WAD, scale)
-        }
-    }
-
-    fn proton_price_in_base(&self, reserve_tokens: u64, proton_supply_tokens: u64) -> Result<u128> {
-        if proton_supply_tokens == 0 {
-            return Ok(WAD);
-        }
-        let reserve_wad = tokens_to_wad(reserve_tokens, self.base_decimals)?;
-        if reserve_wad == 0 {
-            return Ok(0);
-        }
-        let supply_wad = tokens_to_wad(proton_supply_tokens, self.proton_decimals)?;
-        let q = self.q_wad();
-        let one_minus_q = WAD.checked_sub(q).ok_or(error!(ErrorCode::MathOverflow))?;
-        mul_div(one_minus_q, reserve_wad, supply_wad)
-    }
-
-    fn neutron_price_in_base(
+    fn q_wad_dynamic(
         &self,
         reserve_tokens: u64,
         neutron_supply_tokens: u64,
         base_price_wad: u128,
     ) -> Result<u128> {
         if neutron_supply_tokens == 0 {
-            return mul_div(PEG_WAD, WAD, base_price_wad);
-        }
-        let reserve_wad = tokens_to_wad(reserve_tokens, self.base_decimals)?;
-        if reserve_wad == 0 {
             return Ok(0);
         }
-        let supply_wad = tokens_to_wad(neutron_supply_tokens, self.neutron_decimals)?;
-        let q = self.q_wad();
-        mul_div(q, reserve_wad, supply_wad)
+
+        let r_wad_tokens = tokens_to_wad(reserve_tokens, self.base_decimals)?;
+        let s_circ_wad = tokens_to_wad(neutron_supply_tokens, self.neutron_decimals)?;
+
+        require!(base_price_wad > 0, ErrorCode::InvalidPriceValue);
+        let p_star_base_wad = mul_div(WAD, WAD, base_price_wad)?;
+
+        let denom = s_circ_wad
+            .checked_mul(p_star_base_wad)
+            .ok_or(error!(ErrorCode::MathOverflow))?;
+        if denom == 0 {
+            return Ok(0);
+        }
+
+        let tmp = r_wad_tokens
+            .checked_mul(WAD)
+            .ok_or(error!(ErrorCode::MathOverflow))?;
+        let r_wad = mul_div(tmp, WAD, denom)?;
+
+        let r_star_wad = self.r_star_wad;
+
+        let r_tilde_wad = if r_wad > r_star_wad {
+            r_wad
+        } else {
+            let r_over_rstar_wad = mul_div(r_wad, WAD, r_star_wad)?;
+            let diff_wad = r_star_wad
+                .checked_sub(WAD)
+                .ok_or(error!(ErrorCode::MathOverflow))?;
+            let part_wad = mul_div(r_over_rstar_wad, diff_wad, WAD)?;
+            WAD.checked_add(part_wad)
+                .ok_or(error!(ErrorCode::MathOverflow))?
+        };
+
+        let q_wad = mul_div(WAD, WAD, r_tilde_wad)?;
+        Ok(q_wad)
     }
 
+    /// P• = (1 - q) * R / S•
+    fn proton_price_in_base(
+        &self,
+        reserve_tokens: u64,
+        proton_supply_tokens: u64,
+        neutron_supply_tokens: u64,
+        base_price_wad: u128,
+    ) -> Result<u128> {
+        let s_bull_wad = tokens_to_wad(proton_supply_tokens, self.proton_decimals)?;
+        if s_bull_wad == 0 {
+            return Ok(WAD);
+        }
+        let r_wad_tokens = tokens_to_wad(reserve_tokens, self.base_decimals)?;
+        if r_wad_tokens == 0 {
+            return Ok(0);
+        }
+
+        let q_wad = self.q_wad_dynamic(
+            reserve_tokens,
+            neutron_supply_tokens,
+            base_price_wad,
+        )?;
+        let one_minus_q_wad = WAD
+            .checked_sub(q_wad)
+            .ok_or(error!(ErrorCode::MathOverflow))?;
+
+        mul_div(one_minus_q_wad, r_wad_tokens, s_bull_wad)
+    }
+
+    /// P◦ = q * R / S◦
+    /// Bootstrap if S◦ = 0: use the oracle peg (P*◦).
+    fn neutron_price_in_base(
+        &self,
+        reserve_tokens: u64,
+        neutron_supply_tokens: u64,
+        base_price_wad: u128,
+    ) -> Result<u128> {
+        let r_wad_tokens = tokens_to_wad(reserve_tokens, self.base_decimals)?;
+        if r_wad_tokens == 0 {
+            return Ok(0);
+        }
+
+        let s_circ_wad = tokens_to_wad(neutron_supply_tokens, self.neutron_decimals)?;
+        if s_circ_wad == 0 {
+            require!(base_price_wad > 0, ErrorCode::InvalidPriceValue);
+            return mul_div(WAD, WAD, base_price_wad);
+        }
+
+        let q_wad = self.q_wad_dynamic(
+            reserve_tokens,
+            neutron_supply_tokens,
+            base_price_wad,
+        )?;
+
+        mul_div(q_wad, r_wad_tokens, s_circ_wad)
+    }
+
+    /// Exponential decay of the signed β volume ledger, per §2.2.
     fn decay_ledger(&mut self, now_ts: i64) -> Result<()> {
         if now_ts <= self.last_decay_ts {
             return Ok(());
@@ -905,7 +1048,10 @@ impl Reactor {
             self.last_decay_ts = now_ts;
             return Ok(());
         }
+
+        // decay_factor = (decay_per_second_wad) ^ dt  (all WAD math)
         let decay_factor = rpow(self.decay_per_second_wad, dt)?;
+
         if self.decayed_volume_base_wad > 0 {
             let volume = self.decayed_volume_base_wad as u128;
             let decayed = mul_div(volume, decay_factor, WAD)?;
@@ -919,9 +1065,10 @@ impl Reactor {
         Ok(())
     }
 
+    /// φβ+(τ) = min(1, Φβ0 + Φβ1 * max{Δ(τ),0}/R)
     fn beta_plus_fee(&self, reserve_wad: u128) -> Result<u128> {
         if reserve_wad == 0 {
-            return Ok(WAD);
+            return Ok(WAD); // fee caps to 100%
         }
         if self.beta_phi0_wad == 0 && self.beta_phi1_wad == 0 {
             return Ok(0);
@@ -945,6 +1092,7 @@ impl Reactor {
         }
     }
 
+    /// φβ-(τ) = min(1, Φβ0 + Φβ1 * max{-Δ(τ),0}/R)
     fn beta_minus_fee(&self, reserve_wad: u128) -> Result<u128> {
         if reserve_wad == 0 {
             return Ok(WAD);
@@ -972,30 +1120,24 @@ impl Reactor {
     }
 }
 
-fn extract_price_account_key_from_product(data: &[u8]) -> Option<Pubkey> {
-    const HEADER_LEN: usize = 4 + 4 + 4 + 4;
-    const KEY_OFFSET: usize = HEADER_LEN;
-    const KEY_END: usize = KEY_OFFSET + 32;
+// --------------------------------------------
+// Helpers & events
+// --------------------------------------------
 
-    if data.len() < KEY_END {
-        return None;
-    }
-    let magic = u32::from_le_bytes(data[0..4].try_into().ok()?);
-    let account_type = u32::from_le_bytes(data[8..12].try_into().ok()?);
-    if magic != PYTH_MAGIC || account_type != ACCOUNT_TYPE_PRODUCT {
-        return None;
-    }
-    let key_bytes: [u8; 32] = data[KEY_OFFSET..KEY_END].try_into().ok()?;
-    Some(Pubkey::new_from_array(key_bytes))
-}
+fn convert_pyth_price_to_wad(price: i64, exponent: i32) -> Result<u128> {
+    require!(price > 0, ErrorCode::InvalidPriceValue);
+    let price_u128 = price as u128;
 
-fn find_linked_price_key(price_info: &AccountInfo<'_>) -> Result<Option<Pubkey>> {
-    let data_ref = price_info
-        .try_borrow_data()
-        .map_err(|_| error!(ErrorCode::AccountDataBorrowFailed))?;
-    let maybe_price_key = extract_price_account_key_from_product(&data_ref);
-    drop(data_ref);
-    Ok(maybe_price_key)
+    if exponent >= 0 {
+        let scale = pow10(exponent as u32)?;
+        price_u128
+            .checked_mul(scale)
+            .and_then(|v| v.checked_mul(WAD))
+            .ok_or(error!(ErrorCode::MathOverflow))
+    } else {
+        let scale = pow10((-exponent) as u32)?;
+        mul_div(price_u128, WAD, scale)
+    }
 }
 
 #[event]
@@ -1128,6 +1270,10 @@ fn rpow(mut x: u128, mut n: u64) -> Result<u128> {
     Ok(z)
 }
 
+// --------------------------------------------
+// Errors
+// --------------------------------------------
+
 #[error_code]
 pub enum ErrorCode {
     #[msg("Amount must be greater than zero")]
@@ -1138,7 +1284,7 @@ pub enum ErrorCode {
     DivisionByZero,
     #[msg("Fee must be less than 100% (WAD)")]
     InvalidFee,
-    #[msg("Target reserve ratio must be at least 100% (WAD)")]
+    #[msg("Target reserve ratio / r* must be valid")]
     InvalidTargetReserveRatio,
     #[msg("Invalid decimals for token; maximum supported is 18")]
     InvalidDecimals,
@@ -1180,4 +1326,6 @@ pub enum ErrorCode {
     InvalidBetaParam,
     #[msg("Invalid vault name")]
     InvalidVaultName,
+    #[msg("Invalid price feed ID")]
+    InvalidPriceFeedId,
 }
