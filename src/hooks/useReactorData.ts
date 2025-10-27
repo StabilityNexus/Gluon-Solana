@@ -13,11 +13,11 @@ export type ReactorData = {
   baseVault: PublicKey
   treasuryAuthority: PublicKey
   treasuryBaseAccount: PublicKey
-  priceFeed: PublicKey
-  oracleProgram: PublicKey
+  priceFeedId: string
   fissionFeeWad: bigint
   fusionFeeWad: bigint
-  targetReserveRatioWad: bigint
+  targetReserveRatioWad: bigint  // kept for legacy/UI
+  rStarWad: bigint  // critical reserve ratio r* (Gluon Z)
   baseDecimals: number
   neutronDecimals: number
   protonDecimals: number
@@ -44,17 +44,13 @@ export function useReactorData(address: string | null | undefined, refreshKey = 
     }
 
     let cancelled = false
-    const reactorPk = (() => {
-      try {
-        return new PublicKey(address)
-      } catch (error) {
-        console.error('Invalid reactor address', error)
-        setState({ status: 'error', error: new Error('Invalid reactor address') })
-        return null
-      }
-    })()
-
-    if (!reactorPk) {
+    let reactorPk: PublicKey
+    
+    try {
+      reactorPk = new PublicKey(address)
+    } catch (error) {
+      console.error('Invalid reactor address', error)
+      setState({ status: 'error', error: new Error('Invalid reactor address') })
       return
     }
 
@@ -64,7 +60,8 @@ export function useReactorData(address: string | null | undefined, refreshKey = 
 
         const account = await program.account.reactor.fetch(reactorPk)
 
-        const [baseVaultAccount, neutronMintInfo, protonMintInfo] = await Promise.all([
+        const [baseMintInfo, baseVaultAccount, neutronMintInfo, protonMintInfo] = await Promise.all([
+          getMint(connection, account.baseMint),
           getAccount(connection, account.baseVault),
           getMint(connection, account.neutronMint),
           getMint(connection, account.protonMint),
@@ -85,14 +82,14 @@ export function useReactorData(address: string | null | undefined, refreshKey = 
             baseVault: account.baseVault,
             treasuryAuthority: account.treasuryAuthority,
             treasuryBaseAccount: account.treasuryBaseAccount,
-            priceFeed: account.priceFeed,
-            oracleProgram: account.oracleProgram,
+            priceFeedId: account.priceFeedId,
             fissionFeeWad: BigInt(account.fissionFeeWad.toString()),
             fusionFeeWad: BigInt(account.fusionFeeWad.toString()),
             targetReserveRatioWad: BigInt(account.targetReserveRatioWad.toString()),
-            baseDecimals: account.baseDecimals,
-            neutronDecimals: account.neutronDecimals,
-            protonDecimals: account.protonDecimals,
+            rStarWad: BigInt(account.rStarWad.toString()),
+            baseDecimals: baseMintInfo.decimals,
+            neutronDecimals: neutronMintInfo.decimals,
+            protonDecimals: protonMintInfo.decimals,
             reserveTokens: baseVaultAccount.amount,
             neutronSupply: neutronMintInfo.supply,
             protonSupply: protonMintInfo.supply,
