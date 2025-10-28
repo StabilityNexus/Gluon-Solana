@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  basePath: '/solana.gluon.stability.nexus',
+  // basePath: '/solana.gluon.stability.nexus',
   // Disable font optimization for better consistency
   optimizeFonts: false,
   // Prevent build hanging issues
