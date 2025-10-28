@@ -37,8 +37,9 @@ export default function Navigation() {
   const isDark = theme === 'dark'
 
   return (
-    <header className="relative z-[1000] w-full border-b border-border/40 bg-background/70 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:flex-nowrap sm:gap-6">
+    <div className="relative w-full">
+      {/* StableCoin Logo/Heading on the left */}
+      <div className="absolute top-[1em] left-4 z-[1002]">
         <Link href="/" className="flex items-center gap-2 group">
           <div className="relative h-8 w-14">
             <Image
@@ -50,37 +51,32 @@ export default function Navigation() {
               priority
             />
           </div>
-          <span className="font-bold text-xl text-foreground transition-colors group-hover:text-primary">
+          <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors">
             Gluon
           </span>
         </Link>
-
-        <div className="order-3 flex w-full items-center gap-3 sm:hidden">
-          <ThemeToggle />
-          <WalletMultiButton className="!flex-1 !justify-center !rounded-none !bg-primary !text-primary-foreground hover:!bg-primary/90" />
-        </div>
-
-        <div className="order-2 w-full sm:order-none sm:w-auto sm:flex-1">
-          <div className="flex justify-center sm:justify-center">
-            <PillNav
-              items={navItems}
-              activeHref={pathname}
-              className="custom-nav"
-              ease="power2.easeOut"
-              baseColor="transparent"
-              pillColor={isDark ? "#ffffff" : "#000000"}
-              hoveredPillTextColor={isDark ? "#000000" : "#1a1a1a"}
-              pillTextColor={isDark ? "#000000" : "#ffffff"}
-              initialLoadAnimation={true}
-            />
-          </div>
-        </div>
-
-        <div className="hidden items-center gap-3 sm:flex">
-          <ThemeToggle />
-          <WalletMultiButton className="!bg-primary !text-primary-foreground hover:!bg-primary/90" />
-        </div>
       </div>
-    </header>
+
+      {/* Centered PillNav Component */}
+      <div className="flex justify-center bg-transparent">
+        <PillNav
+          items={navItems}
+          activeHref={pathname}
+          className="custom-nav"
+          ease="power2.easeOut"
+          baseColor="transparent"
+          pillColor={isDark ? "#ffffff" : "#000000"}
+          hoveredPillTextColor={isDark ? "#000000" : "#1a1a1a"}
+          pillTextColor={isDark ? "#000000" : "#ffffff"}
+          initialLoadAnimation={true}
+        />
+      </div>
+      
+      {/* Additional controls positioned on the right */}
+      <div className="absolute top-[1em] right-4 flex items-center gap-3 z-[1001]">
+        <ThemeToggle />
+        <WalletMultiButton className="!bg-primary !text-primary-foreground hover:!bg-primary/90" />
+      </div>
+    </div>
   )
 }

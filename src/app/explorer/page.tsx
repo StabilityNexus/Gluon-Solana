@@ -218,7 +218,7 @@ export default function ExplorerPage() {
                 size="sm"
                 onClick={loadReactors}
                 disabled={isLoading}
-                className="h-12 w-full rounded-none border border-white/40 bg-transparent px-6 font-semibold uppercase tracking-[0.3em] text-xs text-white transition hover:bg-white/10 sm:w-auto"
+                className="h-12 rounded-none border border-white/40 bg-transparent px-6 font-semibold uppercase tracking-[0.3em] text-xs text-white transition hover:bg-white/10"
               >
                 <RefreshCcw className="mr-2 h-4 w-4" />
                 Refresh
@@ -293,9 +293,9 @@ type ReactorCardProps = {
 function ReactorCard({ reactor }: ReactorCardProps) {
   const address = reactor.address.toBase58()
   return (
-    <div className="cursor-target border border-white/25 border-big-dashed bg-[#090B11]/85 px-5 py-6 sm:px-6 shadow-[0_0_40px_rgba(0,0,0,0.45)] transition hover:border-white/40">
+    <div className="cursor-target border border-white/25 border-big-dashed bg-[#090B11]/85 px-6 py-6 shadow-[0_0_40px_rgba(0,0,0,0.45)] transition hover:border-white/40">
       <header className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold tracking-wide text-white">{reactor.vaultName}</h2>
           </div>
@@ -348,11 +348,9 @@ type StatRowProps = {
 
 function StatRow({ label, value }: StatRowProps) {
   return (
-    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-center justify-between gap-3">
       <span className="text-white/45">{label}</span>
-      <span className="font-semibold tracking-[0.05em] text-white/85 text-[11px] break-words text-left sm:text-right">
-        {value}
-      </span>
+      <span className="font-semibold tracking-[0.05em] text-white/85 text-[11px]">{value}</span>
     </div>
   )
 }
