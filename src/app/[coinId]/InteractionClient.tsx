@@ -87,7 +87,7 @@ if (typeof window !== "undefined") {
 }
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { utils } from "@coral-xyz/anchor"
 import {
   createAssociatedTokenAccountInstruction,
@@ -275,7 +275,9 @@ function pythPriceToWad(pythPrice: PythPriceData): bigint {
   }
 }
 
-export default function InteractionClient({ coinId }: { coinId: string }) {
+export default function InteractionClient() {
+  const params = useParams<{ coinId?: string }>()
+  const coinId = params?.coinId ?? "c"
   const searchParams = useSearchParams()
   const resolvedAddress = useMemo(() => {
     if (coinId === "c") {
