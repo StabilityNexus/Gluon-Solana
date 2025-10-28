@@ -325,7 +325,7 @@ function ReactorCard({ reactor }: ReactorCardProps) {
         />
       </div>
 
-      <Link href={`/${address}`} className="mt-6 block">
+      <Link href={`/c?coin=${address}`} className="mt-6 block">
         <Button className="w-full rounded-none bg-white text-black hover:bg-white/90">
           <ExternalLink className="mr-2 h-4 w-4" />
           Interact
