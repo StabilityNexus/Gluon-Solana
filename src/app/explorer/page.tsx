@@ -42,7 +42,7 @@ type ReactorSummary = {
   protonMint: PublicKey
   protonDecimals: number
   protonSupply: bigint
-  priceFeed: PublicKey
+  priceFeed: PublicKey | null
   fissionFee: bigint
   fusionFee: bigint
   targetReserveRatio: bigint
@@ -100,6 +100,19 @@ export default function ExplorerPage() {
             const neutronMintInfo = await safeGetMint(connection, account.neutronMint)
             const protonMintInfo = await safeGetMint(connection, account.protonMint)
 
+            let priceFeed: PublicKey | null = null
+            try {
+              priceFeed = new PublicKey(account.priceFeedId as string | Uint8Array | PublicKey)
+            } catch (priceFeedError) {
+              console.warn(
+                'Invalid price feed id for reactor',
+                publicKey.toBase58(),
+                account.priceFeedId,
+                priceFeedError
+              )
+              priceFeed = null
+            }
+
             return {
               address: publicKey,
               vaultName: account.vaultName,
@@ -113,7 +126,7 @@ export default function ExplorerPage() {
               protonMint: account.protonMint,
               protonDecimals: account.protonDecimals,
               protonSupply: protonMintInfo?.supply ?? 0n,
-              priceFeed: new PublicKey(account.priceFeedId),
+              priceFeed,
               fissionFee: BigInt(account.fissionFeeWad.toString()),
               fusionFee: BigInt(account.fusionFeeWad.toString()),
               targetReserveRatio: BigInt(account.targetReserveRatioWad.toString())

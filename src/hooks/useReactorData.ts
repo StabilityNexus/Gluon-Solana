@@ -82,7 +82,14 @@ export function useReactorData(address: string | null | undefined, refreshKey = 
             baseVault: account.baseVault,
             treasuryAuthority: account.treasuryAuthority,
             treasuryBaseAccount: account.treasuryBaseAccount,
-            priceFeedId: account.priceFeedId,
+            priceFeedId: (() => {
+              try {
+                const pk = new PublicKey(account.priceFeedId as string | Uint8Array | PublicKey)
+                return pk.toBase58()
+              } catch {
+                return ''
+              }
+            })(),
             fissionFeeWad: BigInt(account.fissionFeeWad.toString()),
             fusionFeeWad: BigInt(account.fusionFeeWad.toString()),
             targetReserveRatioWad: BigInt(account.targetReserveRatioWad.toString()),
