@@ -520,10 +520,10 @@ export default function CreatePage() {
         className="fixed inset-0"
       />
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-16">
+      <div className="relative z-10 flex min-h-screen items-start justify-center px-4 py-16 sm:px-8 lg:items-center">
         <div className="w-full max-w-3xl mx-auto">
           <div className="relative overflow-hidden border border-white/25 bg-[#090B11]/85 shadow-[0_0_60px_rgba(0,0,0,0.65)] backdrop-blur-sm cursor-normal">
-            <div className="flex items-center justify-between border-b border-white/20 bg-transparent px-8 py-6 uppercase tracking-[0.3em] text-xs text-white/60">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/20 bg-transparent px-6 py-5 sm:flex-nowrap sm:px-8 sm:py-6 uppercase tracking-[0.3em] text-xs text-white/60">
               <div className="flex items-center gap-4 text-white">
                 <span className="text-sm font-bold text-[#8FF7FF]">{'//'}</span>
                 <Shuffle
@@ -546,7 +546,7 @@ export default function CreatePage() {
               </div>
             </div>
 
-            <div className="grid gap-10 px-8 py-10">
+            <div className="grid gap-10 px-6 py-8 sm:px-8 sm:py-10">
               {!connected && (
                 <div className="flex items-center gap-3 border border-dashed border-white/30 bg-black/30 px-5 py-4 text-white/60">
                   <Wallet className="h-5 w-5" />

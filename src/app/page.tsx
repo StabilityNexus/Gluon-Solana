@@ -37,8 +37,8 @@ export default function HomePage() {
       />
       
       {/* Hero Section with Grid Background */}
-      <section className="relative min-h-screen flex items-center z-[5]">
-        <div className="container mx-auto px-4 mb-24 relative z-10">
+      <section className="relative flex items-center py-20 sm:py-24 lg:min-h-screen z-[5]">
+        <div className="container mx-auto px-4 mb-16 sm:mb-24 relative z-10">
           <div className="text-center">
             <HeroText />
             <p className="text-xl text-muted-foreground mb-8 text-pretty max-w-2xl mx-auto">
@@ -58,7 +58,7 @@ export default function HomePage() {
       </section>
 
       {/* How It Works Section */}
-      <section className="relative min-h-screen flex items-center z-[5]">
+      <section className="relative flex items-center py-20 sm:py-24 lg:min-h-screen z-[5]">
         <div className="pointer-events-none absolute inset-0 -z-10">
           <Particles
             particleColors={["#ffffff", "#d9e2ff"]}
@@ -78,7 +78,7 @@ export default function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
           >
-            <Card className="grid container py-8 p-8 grid-cols-1 gap-8 items-center lg:grid-cols-2 bg-transparent backdrop-blur-0 rounded-none shadow-lg border border-white/40">
+            <Card className="grid w-full grid-cols-1 gap-8 items-center bg-transparent px-6 py-8 sm:px-8 lg:grid-cols-2 backdrop-blur-0 rounded-none shadow-lg border border-white/40">
               <motion.div
                 className="flex gap-10 flex-col"
                 initial={{ opacity: 0, x: -30 }}
@@ -147,7 +147,7 @@ export default function HomePage() {
                 </div>
               </motion.div>
               <motion.div
-                className="rounded-none h-full w-full p-4 flex flex-col items-center justify-center space-y-4"
+                className="rounded-none h-full w-full p-4 sm:p-6 flex flex-col items-center justify-center space-y-4"
                 initial={{ opacity: 0, x: 30 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
@@ -196,7 +196,7 @@ export default function HomePage() {
       </section>
 
       {/* Features Section */} 
-      <section className="relative min-h-screen flex items-center z-[5]"> 
+      <section className="relative py-20 sm:py-24 lg:min-h-screen flex items-center z-[5]"> 
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl lg:text-5xl font-bold mb-6 text-balance">Why Choose Our Platform</h2>
@@ -207,7 +207,7 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
             {/* Price Stability */}
-            <Card className="p-8 cursor-target border-white/40 rounded-none">
+            <Card className="p-6 sm:p-8 cursor-target border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
@@ -221,7 +221,7 @@ export default function HomePage() {
             </Card>
 
             {/* Full Transparency */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
+            <Card className="p-6 sm:p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
@@ -235,7 +235,7 @@ export default function HomePage() {
             </Card>
 
             {/* Easy Integration */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
+            <Card className="p-6 sm:p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
@@ -249,7 +249,7 @@ export default function HomePage() {
             </Card>
 
             {/* Regulatory Compliant */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
+            <Card className="p-6 sm:p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
@@ -263,7 +263,7 @@ export default function HomePage() {
             </Card>
 
             {/* 24/7 Monitoring */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
+            <Card className="p-6 sm:p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">

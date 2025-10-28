@@ -1678,8 +1678,8 @@ export default function InteractionClient() {
         value: formatTokenAmount(reactor.protonSupply, reactor.protonDecimals)
       },
       { label: "Pyth Price", value: basePriceText },
-      { label: `${neutronSymbolText}/Base Price`, value: neutronBaseValue },
-      { label: `${protonSymbolText}/Base Price`, value: protonBaseValue },
+      { label: `${neutronSymbolText}/Base`, value: neutronBaseValue },
+      { label: `${protonSymbolText}/Base`, value: protonBaseValue },
       { label: `${neutronSymbolText}/Peg Price`, value: neutronPegPriceDisplay },
       { label: `${protonSymbolText}/Peg Price`, value: protonPegPriceDisplay },
       { label: "Price Updated", value: priceUpdatedText }
@@ -1794,12 +1794,12 @@ export default function InteractionClient() {
                   <span>From</span>
                   <span className="font-mono text-xs text-foreground/80">{fromBalanceDisplay}</span>
                 </div>
-                <div className="flex items-center gap-3 h-14">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:h-14">
                   <Select
                     value={fromToken}
                     onValueChange={(value) => setFromToken(value as TokenOption)}
                   >
-                    <SelectTrigger className="h-full w-40 bg-background/80">
+                    <SelectTrigger className="h-12 sm:h-14 w-full sm:w-40 bg-background/80">
                       <SelectValue placeholder="Token" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1829,7 +1829,7 @@ export default function InteractionClient() {
                       setAmount(event.target.value)
                     }}
                     readOnly={fromInputReadOnly}
-                    className="flex-1 text-2xl font-semibold h-14 bg-background/60"
+                    className="w-full sm:flex-1 text-xl sm:text-2xl font-semibold h-12 sm:h-14 bg-background/60"
                   />
 
                   {renderMaxButton && (
@@ -1837,7 +1837,7 @@ export default function InteractionClient() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="border-white/40 hover:bg-white/10"
+                      className="w-full sm:w-auto h-12 sm:h-14 border-white/40 hover:bg-white/10"
                       onClick={handleMaxClick}
                     >
                       Max
@@ -1848,11 +1848,11 @@ export default function InteractionClient() {
 
               
 
-              <div className="flex justify-center">
+              <div className="flex justify-center my-4 sm:my-2">
                 <Button
                   type="button"
                   variant="ghost"
-                  className="rounded-none h-10 w-10 p-0 bg-white/10 hover:bg-white/20"
+                  className="rounded-none h-12 w-12 sm:h-10 sm:w-10 p-0 bg-white/10 hover:bg-white/20"
                   onClick={() => {
                     const newFrom = toToken
                     const newTo = allowedTargets[newFrom][0]
@@ -1894,9 +1894,9 @@ export default function InteractionClient() {
                     <span className="font-mono text-xs text-foreground/80">{toLabel}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 h-14">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:h-14">
                   <Select value={toToken} onValueChange={(value) => setToToken(value as TokenOption)}>
-                    <SelectTrigger className="h-full bg-background/80">
+                    <SelectTrigger className="h-12 sm:h-14 w-full sm:w-40 bg-background/80">
                       <SelectValue placeholder="Token" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1924,7 +1924,7 @@ export default function InteractionClient() {
                       }
                     }}
                     readOnly={toInputReadOnly}
-                    className="flex-1 text-2xl font-semibold h-14 bg-background/60"
+                    className="w-full sm:flex-1 text-xl sm:text-2xl font-semibold h-12 sm:h-14 bg-background/60"
                   />
                 </div>
               </div>
@@ -1969,7 +1969,7 @@ export default function InteractionClient() {
           </Card>
         </div>
 
-        <div className="max-w-4xl mx-auto mt-40">
+        <div className="max-w-4xl mx-auto mt-16 sm:mt-24 lg:mt-40">
           <Card
             className="bg-background/50 border-white/40"
             style={{
