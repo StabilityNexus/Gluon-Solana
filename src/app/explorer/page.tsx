@@ -42,7 +42,7 @@ type ReactorSummary = {
   protonMint: PublicKey
   protonDecimals: number
   protonSupply: bigint
-  priceFeed: PublicKey | null
+  priceFeedId: string
   fissionFee: bigint
   fusionFee: bigint
   targetReserveRatio: bigint
@@ -78,6 +78,23 @@ async function safeGetMint(connection: ReturnType<typeof useConnection>["connect
   }
 }
 
+function normalizePriceFeedId(value: unknown): string {
+  if (typeof value === "string") {
+    return value
+  }
+  if (value instanceof Uint8Array) {
+    return `0x${Array.from(value).map((byte) => byte.toString(16).padStart(2, "0")).join("")}`
+  }
+  if (Array.isArray(value)) {
+    return `0x${value
+      .map((byte) => Number(byte)
+        .toString(16)
+        .padStart(2, "0"))
+      .join("")}`
+  }
+  return ""
+}
+
 export default function ExplorerPage() {
   const { program } = useStablecoinProgram()
   const { connection } = useConnection()
@@ -100,18 +117,7 @@ export default function ExplorerPage() {
             const neutronMintInfo = await safeGetMint(connection, account.neutronMint)
             const protonMintInfo = await safeGetMint(connection, account.protonMint)
 
-            let priceFeed: PublicKey | null = null
-            try {
-              priceFeed = new PublicKey(account.priceFeedId as string | Uint8Array | PublicKey)
-            } catch (priceFeedError) {
-              console.warn(
-                'Invalid price feed id for reactor',
-                publicKey.toBase58(),
-                account.priceFeedId,
-                priceFeedError
-              )
-              priceFeed = null
-            }
+            const priceFeedId = normalizePriceFeedId(account.priceFeedId)
 
             return {
               address: publicKey,
@@ -126,7 +132,7 @@ export default function ExplorerPage() {
               protonMint: account.protonMint,
               protonDecimals: account.protonDecimals,
               protonSupply: protonMintInfo?.supply ?? 0n,
-              priceFeed,
+              priceFeedId,
               fissionFee: BigInt(account.fissionFeeWad.toString()),
               fusionFee: BigInt(account.fusionFeeWad.toString()),
               targetReserveRatio: BigInt(account.targetReserveRatioWad.toString())

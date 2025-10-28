@@ -32,6 +32,23 @@ type ReactorDataState =
   | { status: 'ready'; data: ReactorData }
   | { status: 'error'; error: Error }
 
+function normalizePriceFeedId(value: unknown): string {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (value instanceof Uint8Array) {
+    return `0x${Array.from(value).map((byte) => byte.toString(16).padStart(2, '0')).join('')}`
+  }
+  if (Array.isArray(value)) {
+    return `0x${value
+      .map((byte) => Number(byte)
+        .toString(16)
+        .padStart(2, '0'))
+      .join('')}`
+  }
+  return ''
+}
+
 export function useReactorData(address: string | null | undefined, refreshKey = 0) {
   const { connection } = useConnection()
   const { program } = useStablecoinProgram()
@@ -82,14 +99,7 @@ export function useReactorData(address: string | null | undefined, refreshKey = 
             baseVault: account.baseVault,
             treasuryAuthority: account.treasuryAuthority,
             treasuryBaseAccount: account.treasuryBaseAccount,
-            priceFeedId: (() => {
-              try {
-                const pk = new PublicKey(account.priceFeedId as string | Uint8Array | PublicKey)
-                return pk.toBase58()
-              } catch {
-                return ''
-              }
-            })(),
+            priceFeedId: normalizePriceFeedId(account.priceFeedId),
             fissionFeeWad: BigInt(account.fissionFeeWad.toString()),
             fusionFeeWad: BigInt(account.fusionFeeWad.toString()),
             targetReserveRatioWad: BigInt(account.targetReserveRatioWad.toString()),
