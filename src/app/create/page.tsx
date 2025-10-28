@@ -1,13 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import {
-  Keypair,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-  type TransactionInstruction
-} from "@solana/web3.js"
+import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js"
 import {
   ACCOUNT_SIZE,
   MINT_SIZE,
@@ -420,12 +414,13 @@ export default function CreatePage() {
             throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}. Check logs above.`)
           }
           console.log("✅ Simulation passed! Logs:", simulation.value.logs)
-        } catch (simError: any) {
+        } catch (simError: unknown) {
           console.error("❌ Simulation error:", simError)
-          if (simError.message?.includes('Transaction simulation failed')) {
-            throw simError
+          const error = simError instanceof Error ? simError : new Error(String(simError))
+          if (error.message?.includes("Transaction simulation failed")) {
+            throw error
           }
-          throw new Error(`Simulation error: ${simError.message || 'Unknown error'}`)
+          throw new Error(`Simulation error: ${error.message || "Unknown error"}`)
         }
 
         toast.info("Approve Transaction 3/3", {
@@ -468,32 +463,33 @@ export default function CreatePage() {
         fusionFeePercent: "0.5",
         criticalReserveRatio: "1.01"
       })
-    } catch (error: any) {
-      console.error("Failed to deploy reactor - Full error:", error)
-      console.error("Error name:", error?.name)
-      console.error("Error message:", error?.message)
-      console.error("Error stack:", error?.stack)
+    } catch (caughtError: unknown) {
+      console.error("Failed to deploy reactor - Full error:", caughtError)
+      const error = caughtError instanceof Error ? caughtError : new Error(String(caughtError))
+      console.error("Error name:", error.name)
+      console.error("Error message:", error.message)
+      console.error("Error stack:", error.stack)
       
       // Check for specific wallet errors
-      if (error?.message?.includes('User rejected') || error?.name === 'WalletSignTransactionError') {
+      if (error.message.includes("User rejected") || error.name === "WalletSignTransactionError") {
         toast.error("Transaction rejected", {
           description: "You rejected the transaction in your wallet"
         })
-      } else if (error?.message?.includes('Wallet not connected')) {
+      } else if (error.message.includes("Wallet not connected")) {
         toast.error("Wallet not connected", {
           description: "Please connect your wallet and try again"
         })
-      } else if (error?.message?.includes('insufficient funds')) {
+      } else if (error.message.includes("insufficient funds")) {
         toast.error("Insufficient funds", {
           description: "You don't have enough SOL to create the reactor"
         })
-      } else if (error?.message?.includes('Transaction too large')) {
+      } else if (error.message.includes("Transaction too large")) {
         toast.error("Transaction too large", {
           description: "The transaction was split into multiple parts. This error shouldn't happen anymore - please try again."
         })
       } else {
         toast.error("Failed to deploy reactor", {
-          description: error instanceof Error ? error.message : "Check console for details"
+          description: error.message || "Check console for details"
         })
       }
     } finally {
@@ -529,7 +525,7 @@ export default function CreatePage() {
           <div className="relative overflow-hidden border border-white/25 bg-[#090B11]/85 shadow-[0_0_60px_rgba(0,0,0,0.65)] backdrop-blur-sm cursor-normal">
             <div className="flex items-center justify-between border-b border-white/20 bg-transparent px-8 py-6 uppercase tracking-[0.3em] text-xs text-white/60">
               <div className="flex items-center gap-4 text-white">
-                <span className="text-sm font-bold text-[#8FF7FF]">//</span>
+                <span className="text-sm font-bold text-[#8FF7FF]">{'//'}</span>
                 <Shuffle
                   text="Create Your Reactor"
                   tag="span"

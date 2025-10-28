@@ -6,30 +6,53 @@ import './LightRays.css';
 
 const DEFAULT_COLOR = '#ffffff';
 
-const hexToRgb = (hex: string): [number, number, number] => {
+type Vec2 = [number, number];
+type Vec3 = [number, number, number];
+
+interface LightRaysUniforms {
+  iTime: { value: number };
+  iResolution: { value: Vec2 };
+  rayPos: { value: Vec2 };
+  rayDir: { value: Vec2 };
+  raysColor: { value: Vec3 };
+  raysSpeed: { value: number };
+  lightSpread: { value: number };
+  rayLength: { value: number };
+  pulsating: { value: number };
+  fadeDistance: { value: number };
+  saturation: { value: number };
+  mousePos: { value: Vec2 };
+  mouseInfluence: { value: number };
+  noiseAmount: { value: number };
+  distortion: { value: number };
+}
+
+const hexToRgb = (hex: string): Vec3 => {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return m ? [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255] : [1, 1, 1];
+  return m
+    ? ([parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255] as Vec3)
+    : ([1, 1, 1] as Vec3);
 };
 
-const getAnchorAndDir = (origin: string, w: number, h: number) => {
+const getAnchorAndDir = (origin: string, w: number, h: number): { anchor: Vec2; dir: Vec2 } => {
   const outside = 0.2;
   switch (origin) {
     case 'top-left':
-      return { anchor: [0, -outside * h], dir: [0, 1] };
+      return { anchor: [0, -outside * h] as Vec2, dir: [0, 1] as Vec2 };
     case 'top-right':
-      return { anchor: [w, -outside * h], dir: [0, 1] };
+      return { anchor: [w, -outside * h] as Vec2, dir: [0, 1] as Vec2 };
     case 'left':
-      return { anchor: [-outside * w, 0.5 * h], dir: [1, 0] };
+      return { anchor: [-outside * w, 0.5 * h] as Vec2, dir: [1, 0] as Vec2 };
     case 'right':
-      return { anchor: [(1 + outside) * w, 0.5 * h], dir: [-1, 0] };
+      return { anchor: [(1 + outside) * w, 0.5 * h] as Vec2, dir: [-1, 0] as Vec2 };
     case 'bottom-left':
-      return { anchor: [0, (1 + outside) * h], dir: [0, -1] };
+      return { anchor: [0, (1 + outside) * h] as Vec2, dir: [0, -1] as Vec2 };
     case 'bottom-center':
-      return { anchor: [0.5 * w, (1 + outside) * h], dir: [0, -1] };
+      return { anchor: [0.5 * w, (1 + outside) * h] as Vec2, dir: [0, -1] as Vec2 };
     case 'bottom-right':
-      return { anchor: [w, (1 + outside) * h], dir: [0, -1] };
+      return { anchor: [w, (1 + outside) * h] as Vec2, dir: [0, -1] as Vec2 };
     default: // "top-center"
-      return { anchor: [0.5 * w, -outside * h], dir: [0, 1] };
+      return { anchor: [0.5 * w, -outside * h] as Vec2, dir: [0, 1] as Vec2 };
   }
 };
 
@@ -65,12 +88,12 @@ const LightRays = ({
   className = ''
 }: LightRaysProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const uniformsRef = useRef<any>(null);
-  const rendererRef = useRef<any>(null);
-  const mouseRef = useRef({ x: 0.5, y: 0.5 });
-  const smoothMouseRef = useRef({ x: 0.5, y: 0.5 });
+  const uniformsRef = useRef<LightRaysUniforms | null>(null);
+  const rendererRef = useRef<Renderer | null>(null);
+  const mouseRef = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 });
+  const smoothMouseRef = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 });
   const animationIdRef = useRef<number | null>(null);
-  const meshRef = useRef<any>(null);
+  const meshRef = useRef<Mesh | null>(null);
   const cleanupFunctionRef = useRef<(() => void) | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -228,12 +251,16 @@ void main() {
   gl_FragColor  = color;
 }`;
 
-      const uniforms = {
+      const initialResolution: Vec2 = [1, 1];
+      const initialRayPos: Vec2 = [0, 0];
+      const initialRayDir: Vec2 = [0, 1];
+      const initialMousePos: Vec2 = [0.5, 0.5];
+      const uniforms: LightRaysUniforms = {
         iTime: { value: 0 },
-        iResolution: { value: [1, 1] },
+        iResolution: { value: initialResolution },
 
-        rayPos: { value: [0, 0] },
-        rayDir: { value: [0, 1] },
+        rayPos: { value: initialRayPos },
+        rayDir: { value: initialRayDir },
 
         raysColor: { value: hexToRgb(raysColor) },
         raysSpeed: { value: raysSpeed },
@@ -242,7 +269,7 @@ void main() {
         pulsating: { value: pulsating ? 1.0 : 0.0 },
         fadeDistance: { value: fadeDistance },
         saturation: { value: saturation },
-        mousePos: { value: [0.5, 0.5] },
+        mousePos: { value: initialMousePos },
         mouseInfluence: { value: mouseInfluence },
         noiseAmount: { value: noiseAmount },
         distortion: { value: distortion }
@@ -270,7 +297,8 @@ void main() {
         const w = wCSS * dpr;
         const h = hCSS * dpr;
 
-        uniforms.iResolution.value = [w, h];
+        const resolution: Vec2 = [w, h];
+        uniforms.iResolution.value = resolution;
 
         const { anchor, dir } = getAnchorAndDir(raysOrigin, w, h);
         uniforms.rayPos.value = anchor;
@@ -290,7 +318,8 @@ void main() {
           smoothMouseRef.current.x = smoothMouseRef.current.x * smoothing + mouseRef.current.x * (1 - smoothing);
           smoothMouseRef.current.y = smoothMouseRef.current.y * smoothing + mouseRef.current.y * (1 - smoothing);
 
-          uniforms.mousePos.value = [smoothMouseRef.current.x, smoothMouseRef.current.y];
+          const nextMousePos: Vec2 = [smoothMouseRef.current.x, smoothMouseRef.current.y];
+          uniforms.mousePos.value = nextMousePos;
         }
 
         try {

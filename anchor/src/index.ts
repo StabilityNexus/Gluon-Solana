@@ -1,1 +1,1 @@
-export * from './Stablecoin-exports'
+export * from './stablecoin-exports'

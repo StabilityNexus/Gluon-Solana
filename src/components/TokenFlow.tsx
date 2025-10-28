@@ -27,14 +27,16 @@ const Circle = forwardRef<
 
 Circle.displayName = "Circle";
 
+type TokenFlowToken = 'Fungible' | 'Neutron' | 'Proton' | 'Base Token';
+
 const TokenFlow = ({
   fromTokens,
   toTokens,
   reverse = false,
   className = ""
 }: {
-  fromTokens: Array<'Fungible' | 'Neutron' | 'Proton'>;
-  toTokens: Array<'Fungible' | 'Neutron' | 'Proton'>;
+  fromTokens: TokenFlowToken[];
+  toTokens: TokenFlowToken[];
   reverse?: boolean;
   className?: string;
 }) => {
@@ -61,10 +63,11 @@ const TokenFlow = ({
     return () => clearTimeout(timer);
   }, [fromTokens.length, toTokens.length]);
 
-  const getTokenIcon = (token: 'Fungible' | 'Neutron' | 'Proton') => {
+  const getTokenIcon = (token: TokenFlowToken) => {
     const iconProps = { className: "w-full h-full" };
     switch (token) {
       case 'Fungible':
+      case 'Base Token':
         return <ErcIcon {...iconProps} />;
       case 'Neutron':
         return <StableCoinIcon {...iconProps} />;

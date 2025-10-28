@@ -27,7 +27,7 @@ export function useStablecoinProgram() {
         }
         return walletAdapter.signAllTransactions(transactions)
       },
-    }
+    } as Wallet
   }, [walletAdapter])
 
   const provider = useMemo(

@@ -6,7 +6,8 @@ import { Buffer } from "buffer"
 if (typeof window !== "undefined") {
   window.Buffer = Buffer
   // Also set on globalThis for libraries that check there
-  ;(globalThis as any).Buffer = Buffer
+  const globalWithBuffer = globalThis as typeof globalThis & { Buffer?: typeof Buffer }
+  globalWithBuffer.Buffer = Buffer
 
   const bufferProto = Buffer.prototype as Record<string, unknown>
   const ensureBufferAlias = (alias: string, original: string) => {
@@ -24,9 +25,12 @@ if (typeof window !== "undefined") {
   ensureBufferAlias("readBigUint64LE", "readBigUInt64LE")
 
   // Some SDK utilities operate on Uint8Array instances directly; provide compatible helpers there too.
-  const u8Proto = Uint8Array.prototype as Record<string, unknown>
+  const u8Proto = Uint8Array.prototype as unknown as Record<string, unknown>
   const getView = (arr: Uint8Array) => new DataView(arr.buffer, arr.byteOffset, arr.byteLength)
-  const ensureTypedArrayMethod = (name: string, impl: (...args: unknown[]) => unknown) => {
+  const ensureTypedArrayMethod = (
+    name: string,
+    impl: (this: Uint8Array, offset?: number) => unknown
+  ) => {
     if (typeof u8Proto[name] !== "function") {
       Object.defineProperty(u8Proto, name, {
         value: impl,
@@ -36,47 +40,47 @@ if (typeof window !== "undefined") {
     }
   }
 
-  ensureTypedArrayMethod("readUint8", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUint8", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint8(offset)
   })
-  ensureTypedArrayMethod("readUInt8", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUInt8", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint8(offset)
   })
-  ensureTypedArrayMethod("readUint16BE", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUint16BE", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint16(offset, false)
   })
-  ensureTypedArrayMethod("readUint16LE", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUint16LE", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint16(offset, true)
   })
-  ensureTypedArrayMethod("readUInt16BE", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUInt16BE", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint16(offset, false)
   })
-  ensureTypedArrayMethod("readUInt16LE", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUInt16LE", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint16(offset, true)
   })
-  ensureTypedArrayMethod("readUint32BE", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUint32BE", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint32(offset, false)
   })
-  ensureTypedArrayMethod("readUint32LE", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUint32LE", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint32(offset, true)
   })
-  ensureTypedArrayMethod("readUInt32BE", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUInt32BE", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint32(offset, false)
   })
-  ensureTypedArrayMethod("readUInt32LE", function (this: Uint8Array, offset = 0) {
+  ensureTypedArrayMethod("readUInt32LE", function (this: Uint8Array, offset: number = 0) {
     return getView(this).getUint32(offset, true)
   })
   if (typeof DataView.prototype.getBigUint64 === "function") {
-    ensureTypedArrayMethod("readBigUint64BE", function (this: Uint8Array, offset = 0) {
+    ensureTypedArrayMethod("readBigUint64BE", function (this: Uint8Array, offset: number = 0) {
       return getView(this).getBigUint64(offset, false)
     })
-    ensureTypedArrayMethod("readBigUint64LE", function (this: Uint8Array, offset = 0) {
+    ensureTypedArrayMethod("readBigUint64LE", function (this: Uint8Array, offset: number = 0) {
       return getView(this).getBigUint64(offset, true)
     })
-    ensureTypedArrayMethod("readBigUInt64BE", function (this: Uint8Array, offset = 0) {
+    ensureTypedArrayMethod("readBigUInt64BE", function (this: Uint8Array, offset: number = 0) {
       return getView(this).getBigUint64(offset, false)
     })
-    ensureTypedArrayMethod("readBigUInt64LE", function (this: Uint8Array, offset = 0) {
+    ensureTypedArrayMethod("readBigUInt64LE", function (this: Uint8Array, offset: number = 0) {
       return getView(this).getBigUint64(offset, true)
     })
   }
@@ -110,7 +114,6 @@ import {
   ArrowLeftRight,
   Copy,
   Info,
-  RefreshCw,
   Sparkles,
   Zap
 } from "lucide-react"
@@ -141,11 +144,6 @@ import {
 } from "@/utils/amount"
 
 const AUTHORITY_SEED = utils.bytes.utf8.encode("reactor-authority")
-const PRICE_ACCOUNT_SIZE = 3312
-const PYTH_MAGIC = 0xa1b2c3d4
-const PRODUCT_HEADER_LEN = 4 + 4 + 4 + 4
-const ACCOUNT_TYPE_PRODUCT = 2
-const ACCOUNT_TYPE_PRICE = 3
 const WAD = BigInt("1000000000000000000")
 
 type TokenOption = "BASE" | "BUNDLE" | "NEUTRON" | "PROTON"
@@ -176,19 +174,10 @@ type BalanceInfo = {
 }
 
 type RpcConnection = ReturnType<typeof useConnection>["connection"]
-type AccountInfoResult = Awaited<ReturnType<RpcConnection["getAccountInfo"]>>
-
 type UserBalances = {
   base: BalanceInfo
   neutron: BalanceInfo
   proton: BalanceInfo
-}
-
-type PythHeaderInfo = {
-  accountType: number
-  version: number
-  dataSize: number
-  linkedPriceKey: PublicKey | null
 }
 
 type PythPriceData = {
@@ -256,109 +245,6 @@ const shortenAddress = (value: string, guard = 4) => {
   return `${value.slice(0, guard + 2)}…${value.slice(-guard)}`
 }
 
-function parsePythHeader(data: Buffer): PythHeaderInfo | null {
-  if (data.length < PRODUCT_HEADER_LEN) {
-    return null
-  }
-  const magic = data.readUInt32LE(0)
-  if (magic !== PYTH_MAGIC) {
-    return null
-  }
-  const version = data.readUInt32LE(4)
-  const accountType = data.readUInt32LE(8)
-  const dataSize = data.readUInt32LE(12)
-  let linkedPriceKey: PublicKey | null = null
-  if (accountType === ACCOUNT_TYPE_PRODUCT && data.length >= PRODUCT_HEADER_LEN + 32) {
-    linkedPriceKey = new PublicKey(data.subarray(PRODUCT_HEADER_LEN, PRODUCT_HEADER_LEN + 32))
-  }
-  return { accountType, version, dataSize, linkedPriceKey }
-}
-
-async function resolvePriceFeedAccounts(
-  connection: RpcConnection,
-  priceFeed: PublicKey,
-  oracleProgram: PublicKey,
-  cachedInfo?: AccountInfoResult | null
-) {
-  const priceFeedInfo = cachedInfo ?? (await connection.getAccountInfo(priceFeed))
-  if (!priceFeedInfo) {
-    throw new Error(`Price feed ${priceFeed.toBase58()} not found`)
-  }
-  if (!priceFeedInfo.owner.equals(oracleProgram)) {
-    throw new Error(
-      `Price feed owner mismatch. Expected ${oracleProgram.toBase58()}, got ${priceFeedInfo.owner.toBase58()}`
-    )
-  }
-  if (priceFeedInfo.data.length === PRICE_ACCOUNT_SIZE) {
-    return {
-      priceFeedInfo,
-      linkedPriceInfo: null as AccountInfoResult | null,
-      linkedPriceKey: null as PublicKey | null,
-      remainingAccounts: [] as { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]
-    }
-  }
-
-  const header = parsePythHeader(priceFeedInfo.data)
-  if (!header) {
-    console.warn("Unknown oracle account layout; proceeding without linked price account.")
-    return {
-      priceFeedInfo,
-      linkedPriceInfo: null as AccountInfoResult | null,
-      linkedPriceKey: null as PublicKey | null,
-      remainingAccounts: [] as { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]
-    }
-  }
-
-  if (header.accountType === ACCOUNT_TYPE_PRICE) {
-    return {
-      priceFeedInfo,
-      linkedPriceInfo: null as AccountInfoResult | null,
-      linkedPriceKey: null as PublicKey | null,
-      remainingAccounts: [] as { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]
-    }
-  }
-
-  if (header.accountType === ACCOUNT_TYPE_PRODUCT && header.linkedPriceKey) {
-    const linkedInfo = await connection.getAccountInfo(header.linkedPriceKey)
-    if (!linkedInfo) {
-      throw new Error(`Linked price account ${header.linkedPriceKey.toBase58()} missing`)
-    }
-    if (!linkedInfo.owner.equals(oracleProgram)) {
-      throw new Error(
-        `Linked price account owner mismatch. Expected ${oracleProgram.toBase58()}, got ${linkedInfo.owner.toBase58()}`
-      )
-    }
-    if (linkedInfo.data.length !== PRICE_ACCOUNT_SIZE) {
-      console.warn(
-        `Linked price account has size ${linkedInfo.data.length} (expected ${PRICE_ACCOUNT_SIZE}). Proceeding anyway.`
-      )
-    }
-
-    return {
-      priceFeedInfo,
-      linkedPriceInfo: linkedInfo,
-      linkedPriceKey: header.linkedPriceKey,
-      remainingAccounts: [
-        {
-          pubkey: header.linkedPriceKey,
-          isSigner: false,
-          isWritable: false
-        }
-      ] as { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]
-    }
-  }
-
-  console.warn(
-    `Unsupported oracle account type ${header.accountType}. Proceeding without linked price account.`
-  )
-  return {
-    priceFeedInfo,
-    linkedPriceInfo: null as AccountInfoResult | null,
-    linkedPriceKey: null as PublicKey | null,
-    remainingAccounts: [] as { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]
-  }
-}
-
 async function safeGetAccount(connection: RpcConnection, address: PublicKey) {
   try {
     return await getAccount(connection, address)
@@ -367,30 +253,6 @@ async function safeGetAccount(connection: RpcConnection, address: PublicKey) {
       return null
     }
     throw error
-  }
-}
-
-function parsePythPriceData(data: Buffer): PythPriceData | null {
-  try {
-    if (data.length !== PRICE_ACCOUNT_SIZE) {
-      console.warn(`Expected Pyth account size ${PRICE_ACCOUNT_SIZE}, got ${data.length}`)
-      return null
-    }
-
-    const price = data.readBigInt64LE(208)
-    const conf = data.readBigUInt64LE(216)
-    const expo = data.readInt32LE(224)
-    const publishTime = Number(data.readBigInt64LE(272))
-
-    return {
-      price: Number(price),
-      conf: Number(conf),
-      expo,
-      publishTime
-    }
-  } catch (error) {
-    console.error("Failed to parse Pyth price data:", error)
-    return null
   }
 }
 
@@ -714,7 +576,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
       console.error("Failed to calculate fission preview:", error)
       setFissionPreview(null)
     }
-  }, [reactor, route, amount, priceData])
+  }, [reactor, route, amount, priceData, derivedTokenPrices])
 
   useEffect(() => {
     if (!reactor || route !== "FUSION" || !amount) {
@@ -817,7 +679,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
       console.error("Failed to calculate transmute preview:", error)
       setTransmutePreview(null)
     }
-  }, [reactor, route, amount, priceData])
+  }, [reactor, route, amount, priceData, derivedTokenPrices])
 
   const currentDecimals = useMemo(() => {
     if (!reactor || !route) {
@@ -1120,9 +982,6 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
     protonSymbolText,
     peggedSymbolText
   ])
-
-  const routeUsesPrice =
-    route === "FISSION" || route === "PROTON_TO_NEUTRON" || route === "NEUTRON_TO_PROTON"
 
   const swapDescription = useMemo(() => {
     switch (route) {
@@ -1616,16 +1475,18 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
           publicKey: publicKey!,
           signTransaction: async (tx) => {
             // Use the wallet's actual signTransaction method
-            if (!(window as any).solana) {
+            if (!window.solana) {
               throw new Error("Wallet not found")
             }
-            return await (window as any).solana.signTransaction(tx)
+            const signed = await window.solana.signTransaction(tx)
+            return signed as Transaction
           },
           signAllTransactions: async (txs) => {
-            if (!(window as any).solana) {
+            if (!window.solana) {
               throw new Error("Wallet not found")
             }
-            return await (window as any).solana.signAllTransactions(txs)
+            const signed = await window.solana.signAllTransactions(txs)
+            return signed as Transaction[]
           },
         } as Wallet,
       })
@@ -1917,7 +1778,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
         </div>
 
         <div className="max-w-xl mx-auto">
-          <Card className="backdrop-blur-md bg-background/60 border-white/20 shadow-2xl">
+          <Card className="backdrop-blur-md bg-background/60 border-white/40 shadow-2xl rounded-none">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-semibold flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
@@ -1926,7 +1787,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
               <p className="text-sm text-foreground">{swapDescription}</p>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="space-y-3 rounded-none border border-white/40 bg-white/5 p-4">
                 <div className="flex items-center justify-between text-sm text-foreground">
                   <span>From</span>
                   <span className="font-mono text-xs text-foreground/80">{fromBalanceDisplay}</span>
@@ -1974,7 +1835,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="border-white/20 hover:bg-white/10"
+                      className="border-white/40 hover:bg-white/10"
                       onClick={handleMaxClick}
                     >
                       Max
@@ -1989,7 +1850,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="rounded-full h-10 w-10 p-0 bg-white/10 hover:bg-white/20"
+                  className="rounded-none h-10 w-10 p-0 bg-white/10 hover:bg-white/20"
                   onClick={() => {
                     const newFrom = toToken
                     const newTo = allowedTargets[newFrom][0]
@@ -2001,7 +1862,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
                 </Button>
               </div>
 
-              <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="space-y-3 rounded-none border border-white/40 bg-white/5 p-4">
                 <div className="flex items-center justify-between text-sm text-foreground">
                   <span>To</span>
                   <div className="flex items-center gap-2">
@@ -2010,7 +1871,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
                         <PopoverTrigger asChild>
                           <button
                             type="button"
-                            className="rounded-full border border-white/20 p-1 text-foreground/70 transition-colors hover:border-white/40 hover:text-foreground"
+                            className="rounded-none border border-white/40 p-1 text-foreground/70 transition-colors hover:border-white/40 hover:text-foreground"
                           >
                             <Info className="h-4 w-4" />
                           </button>
@@ -2080,7 +1941,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
                 {!connected ? (
                   <Button
                     onClick={() => walletModal.setVisible(true)}
-                    className="w-full h-14 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold text-lg border-0"
+                    className="w-full h-14 bg-[#E8BA10] hover:bg-[#d0a60e] text-white font-semibold text-lg border-0"
                   >
                     <Zap className="mr-2 h-5 w-5" />
                     Connect Wallet
@@ -2089,7 +1950,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
                   <Button
                     onClick={handleSwap}
                     disabled={!route || !isAmountPositive || !recipientMatchesWallet || isProcessing}
-                    className="w-full h-14 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-semibold text-lg border-0 disabled:opacity-60"
+                    className="w-full h-14 bg-[#E8BA10] hover:bg-[#d0a60e] text-white font-semibold text-lg border-0 disabled:opacity-60"
                   >
                     {isProcessing ? (
                       <>
@@ -2108,7 +1969,7 @@ export default function InteractionClient({ coinId }: { coinId: string }) {
 
         <div className="max-w-4xl mx-auto mt-40">
           <Card
-            className="bg-background/50 border-white/15"
+            className="bg-background/50 border-white/40"
             style={{
               fontFamily:
                 "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText as GSAPSplitText } from 'gsap/SplitText';
@@ -188,7 +188,9 @@ const Shuffle: React.FC<ShuffleProps> = ({
         }
 
         gsap.set(inner, { x: startX, force3D: true });
-        if (colorFrom) (inner.style as any).color = colorFrom;
+        if (colorFrom) {
+          inner.style.color = colorFrom;
+        }
 
         inner.setAttribute('data-final-x', String(finalX));
         inner.setAttribute('data-start-x', String(startX));
@@ -359,9 +361,12 @@ const Shuffle: React.FC<ShuffleProps> = ({
   };
 
   const classes = `${baseTw} ${ready ? 'visible' : 'invisible'} ${className}`.trim();
-  const Tag = (tag || 'p') as keyof JSX.IntrinsicElements;
+  const Tag = (tag || 'p') as React.ElementType;
+  const assignRef = useCallback<React.RefCallback<HTMLElement>>((node) => {
+    ref.current = node;
+  }, []);
 
-  return React.createElement(Tag, { ref: ref as any, className: classes, style: commonStyle }, text);
+  return React.createElement(Tag, { ref: assignRef, className: classes, style: commonStyle }, text);
 };
 
 export default Shuffle;
