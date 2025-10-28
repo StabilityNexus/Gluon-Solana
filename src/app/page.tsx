@@ -46,10 +46,10 @@ export default function HomePage() {
               build trust in the decentralized economy.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild size="lg" className="text-lg px-8 cursor-target">
+              <Button asChild size="lg" className="text-lg px-8 cursor-target rounded-none">
                 <Link href="/create">Create Stablecoin</Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="text-lg px-8 bg-transparent cursor-target">
+              <Button asChild variant="outline" size="lg" className="text-lg px-8 bg-transparent cursor-target rounded-none">
                 <Link href="/explorer">Explore Coins</Link>
               </Button>
             </div>
@@ -78,7 +78,7 @@ export default function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
           >
-            <Card className="grid container py-8 p-8 grid-cols-1 gap-8 items-center lg:grid-cols-2 bg-transparent backdrop-blur-0 rounded-xl shadow-lg border border-white/10">
+            <Card className="grid container py-8 p-8 grid-cols-1 gap-8 items-center lg:grid-cols-2 bg-transparent backdrop-blur-0 rounded-none shadow-lg border border-white/40">
               <motion.div
                 className="flex gap-10 flex-col"
                 initial={{ opacity: 0, x: -30 }}
@@ -91,7 +91,7 @@ export default function HomePage() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.3, duration: 0.3 }}
                   >
-                    <div className="inline-block bg-white/10 px-4 py-2 rounded-full text-sm font-medium mb-4 backdrop-blur-sm border border-white/20">How It Works</div>
+                    <div className="inline-block bg-white/10 px-4 py-2 rounded-none text-sm font-medium mb-4 backdrop-blur-sm border border-white/40">How It Works</div>
                   </motion.div>
                   <div className="flex gap-2 flex-col">
                     <motion.h2
@@ -147,7 +147,7 @@ export default function HomePage() {
                 </div>
               </motion.div>
               <motion.div
-                className="rounded-[2rem] h-full w-full p-4 flex flex-col items-center justify-center space-y-4"
+                className="rounded-none h-full w-full p-4 flex flex-col items-center justify-center space-y-4"
                 initial={{ opacity: 0, x: 30 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
@@ -207,14 +207,11 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
             {/* Price Stability */}
-            <Card className="p-8 cursor-target border-white/10">
+            <Card className="p-8 cursor-target border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-white text-black px-4 py-2 rounded-lg font-bold text-sm">
+                  <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
                     Dual Token Innovation
-                  </div>
-                  <div className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold border border-white">
-                    1.1
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
@@ -224,31 +221,25 @@ export default function HomePage() {
             </Card>
 
             {/* Full Transparency */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/10">
+            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-white text-black px-4 py-2 rounded-lg font-bold text-sm">
+                  <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
                     Bitcoin Infrastructure
-                  </div>
-                  <div className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold border border-white">
-                    1.2
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  Built on Bitcoin-compatible networks like Citrea and Rootstock. Leverage Bitcoin's security and stability while accessing modern DeFi capabilities and smart contract functionality.
+                  Built on Bitcoin-compatible networks like Citrea and Rootstock. Leverage Bitcoin&apos;s security and stability while accessing modern DeFi capabilities and smart contract functionality.
                 </p>
               </CardContent>
             </Card>
 
             {/* Easy Integration */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/10">
+            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-white text-black px-4 py-2 rounded-lg font-bold text-sm">
+                  <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
                     Real-Time Oracle Data
-                  </div>
-                  <div className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold border border-white">
-                    1.3
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
@@ -258,14 +249,11 @@ export default function HomePage() {
             </Card>
 
             {/* Regulatory Compliant */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/10">
+            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-white text-black px-4 py-2 rounded-lg font-bold text-sm">
+                  <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
                     Full Transparency
-                  </div>
-                  <div className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold border border-white">
-                    1.4
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
@@ -275,14 +263,11 @@ export default function HomePage() {
             </Card>
 
             {/* 24/7 Monitoring */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/10">
+            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-white text-black px-4 py-2 rounded-lg font-bold text-sm">
+                  <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
                     Dynamic Risk Management
-                  </div>
-                  <div className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold border border-white">
-                    1.5
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
@@ -292,14 +277,11 @@ export default function HomePage() {
             </Card>
 
             {/* Global Access */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/10">
+            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-white text-black px-4 py-2 rounded-lg font-bold text-sm">
+                  <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
                     Multi-Chain Support
-                  </div>
-                  <div className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold border border-white">
-                    1.6
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">

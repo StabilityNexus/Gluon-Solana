@@ -17,9 +17,7 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
-  Orbit,
   Rocket,
-  Sparkles
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -57,13 +55,6 @@ const containerFontStyle = {
 
 const searchInputClasses =
   "pl-12 h-12 bg-transparent border border-white/30 focus:border-white/50 hover:border-white/40 rounded-none tracking-[0.2em] uppercase text-[11px] text-white placeholder:text-white/40 transition-all duration-200"
-
-function shortenAddress(value: string, chars = 6) {
-  if (value.length <= chars * 2 + 3) {
-    return value
-  }
-  return `${value.slice(0, chars + 2)}…${value.slice(-chars)}`
-}
 
 async function safeGetAccount(connection: ReturnType<typeof useConnection>["connection"], address: PublicKey) {
   try {
@@ -122,7 +113,7 @@ export default function ExplorerPage() {
               protonMint: account.protonMint,
               protonDecimals: account.protonDecimals,
               protonSupply: protonMintInfo?.supply ?? 0n,
-              priceFeed: account.priceFeed,
+              priceFeed: new PublicKey(account.priceFeedId),
               fissionFee: BigInt(account.fissionFeeWad.toString()),
               fusionFee: BigInt(account.fusionFeeWad.toString()),
               targetReserveRatio: BigInt(account.targetReserveRatioWad.toString())

@@ -28,39 +28,20 @@ pub mod stablecoin {
         let clock = Clock::get()?;
         let reactor = &mut ctx.accounts.reactor;
 
-        require!(
-            !params.vault_name.trim().is_empty()
-                && params.vault_name.len() <= Reactor::MAX_VAULT_NAME,
-            ErrorCode::InvalidVaultName
-        );
-        require!(
-            !params.price_feed_id.trim().is_empty()
-                && params.price_feed_id.len() <= Reactor::MAX_PRICE_FEED_ID,
-            ErrorCode::InvalidPriceFeedId
-        );
+        require!(!params.vault_name.trim().is_empty() && params.vault_name.len() <= Reactor::MAX_VAULT_NAME, ErrorCode::InvalidVaultName);
+        require!( !params.price_feed_id.trim().is_empty() && params.price_feed_id.len() <= Reactor::MAX_PRICE_FEED_ID, ErrorCode::InvalidPriceFeedId);
         require!(params.fission_fee_wad < WAD, ErrorCode::InvalidFee);
         require!(params.fusion_fee_wad < WAD, ErrorCode::InvalidFee);
-
-        // Gluon Z: r* > 1.0
         require!(params.r_star_wad > WAD, ErrorCode::InvalidTargetReserveRatio);
+        require!(params.critical_reserve_ratio_wad >= WAD, ErrorCode::InvalidTargetReserveRatio);
+        require!(ctx.accounts.treasury_authority.key() != Pubkey::default(), ErrorCode::InvalidTreasuryAuthority);
 
-        // kept for UI even if not used in math anymore
-        require!(
-            params.target_reserve_ratio_wad >= WAD,
-            ErrorCode::InvalidTargetReserveRatio
-        );
-
-        require!(
-            ctx.accounts.treasury_authority.key() != Pubkey::default(),
-            ErrorCode::InvalidTreasuryAuthority
-        );
-
-        let base_decimals = ctx.accounts.base_mint.decimals;
-        let neutron_decimals = ctx.accounts.neutron_mint.decimals;
-        let proton_decimals = ctx.accounts.proton_mint.decimals;
-        reactor.validate_decimals(base_decimals)?;
-        reactor.validate_decimals(neutron_decimals)?;
-        reactor.validate_decimals(proton_decimals)?;
+        let baseDecimals = ctx.accounts.base_mint.decimals;
+        let neutronDecimals = ctx.accounts.neutron_mint.decimals;
+        let protonDecimals = ctx.accounts.proton_mint.decimals;
+        reactor.validate_decimals(baseDecimals)?;
+        reactor.validate_decimals(neutronDecimals)?;
+        reactor.validate_decimals(protonDecimals)?;
 
         require!(
             ctx.accounts.neutron_mint.mint_authority
@@ -116,14 +97,9 @@ pub mod stablecoin {
 
         reactor.fission_fee_wad = params.fission_fee_wad;
         reactor.fusion_fee_wad = params.fusion_fee_wad;
+        reactor.critical_reserve_ratio_wad = params.critical_reserve_ratio_wad;
 
-        // kept for optics / UI
-        reactor.target_reserve_ratio_wad = params.target_reserve_ratio_wad;
-
-        // Gluon Z critical reserve ratio r*
         reactor.r_star_wad = params.r_star_wad;
-
-        // β fee params start at 0 and can be set later
         reactor.beta_phi0_wad = 0;
         reactor.beta_phi1_wad = 0;
         reactor.decay_per_second_wad = WAD;
@@ -163,16 +139,11 @@ pub mod stablecoin {
         Ok(())
     }
 
-    /// Fission: user deposits base, gets neutrons+protons in proportion
-    /// to pre-fission S◦/R and S•/R, minus Φ↓ fee.
-    /// Bootstrap logic kept as-is for first deposit.
     pub fn fission(ctx: Context<Fission>, amount_in: u64) -> Result<()> {
         require!(amount_in > 0, ErrorCode::AmountIsZero);
         let reactor = &mut ctx.accounts.reactor;
 
-        // --- 1) Snapshot pre-fission R, S◦, S• ---
         let reserve_before_tokens = load_token_account(&ctx.accounts.base_vault)?.amount;
-
         let neutron_mint_state = load_mint(&ctx.accounts.neutron_mint)?;
         let proton_mint_state = load_mint(&ctx.accounts.proton_mint)?;
         let s_circ_tokens = neutron_mint_state.supply;
@@ -180,7 +151,7 @@ pub mod stablecoin {
 
         let m_wad = tokens_to_wad(amount_in, reactor.base_decimals)?;
 
-        // --- 2) fee Φ↓ ---
+        // Fees
         let fee_wad = mul_div(m_wad, reactor.fission_fee_wad, WAD)?;
         let fee_tokens = wad_to_tokens(fee_wad, reactor.base_decimals)?;
         let net_tokens = amount_in
@@ -190,56 +161,40 @@ pub mod stablecoin {
 
         let net_wad = tokens_to_wad(net_tokens, reactor.base_decimals)?;
 
-        // --- 3) BOOTSTRAP or NORMAL ---
+        // Bootstrap/Fission logic
         let (neutron_out_tokens, proton_out_tokens) =
             if reserve_before_tokens == 0 && s_circ_tokens == 0 && s_bull_tokens == 0 {
-                // bootstrap policy (your custom choice)
-                const BOOTSTRAP_RESERVE_RATIO_WAD: u128 = WAD * 4; // 400%
+                const BOOTSTRAP_RESERVE_RATIO_WAD: u128 = WAD * 4; // 400% ( For Hackathon demo purposes only )
 
                 let neutron_out_wad = mul_div(net_wad, WAD, BOOTSTRAP_RESERVE_RATIO_WAD)?;
                 let proton_out_wad = mul_div(net_wad, WAD, BOOTSTRAP_RESERVE_RATIO_WAD)?;
-
-                let neutron_out =
-                    wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
-                let proton_out =
-                    wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
+                let neutron_out = wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
+                let proton_out = wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
 
                 (neutron_out, proton_out)
             } else {
-                // normal Gluon Z fission
-                let r_before_wad =
-                    tokens_to_wad(reserve_before_tokens, reactor.base_decimals)?;
+                let r_before_wad = tokens_to_wad(reserve_before_tokens, reactor.base_decimals)?;
                 require!(r_before_wad > 0, ErrorCode::ZeroReserve);
 
-                let s_circ_wad =
-                    tokens_to_wad(s_circ_tokens, reactor.neutron_decimals)?;
-                let s_bull_wad =
-                    tokens_to_wad(s_bull_tokens, reactor.proton_decimals)?;
+                let s_circ_wad = tokens_to_wad(s_circ_tokens, reactor.neutron_decimals)?;
+                let s_bull_wad = tokens_to_wad(s_bull_tokens, reactor.proton_decimals)?;
+                let neutron_out_wad = if s_circ_wad == 0 { 0 } else { mul_div(net_wad, s_circ_wad, r_before_wad)? };
+                let proton_out_wad = if s_bull_wad == 0 { 0 } else { mul_div(net_wad, s_bull_wad, r_before_wad)? };
+                let neutron_out = wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
+                let proton_out = wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
 
-                let neutron_out_wad = if s_circ_wad == 0 {
-                    0
-                } else {
-                    mul_div(net_wad, s_circ_wad, r_before_wad)?
-                };
-                let proton_out_wad = if s_bull_wad == 0 {
-                    0
-                } else {
-                    mul_div(net_wad, s_bull_wad, r_before_wad)?
-                };
-
-                let neutron_out =
-                    wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
-                let proton_out =
-                    wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
                 (neutron_out, proton_out)
             };
 
-        require!(
-            neutron_out_tokens > 0 || proton_out_tokens > 0,
-            ErrorCode::AmountTooSmall
-        );
+            require!( neutron_out_tokens > 0 || proton_out_tokens > 0, ErrorCode::AmountTooSmall);
+            let neutron_out = wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
+            let proton_out = wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
+            (neutron_out, proton_out)
+        };
 
-        // --- 4) Move user's base into vault
+        require!(neutron_out_tokens > 0 || proton_out_tokens > 0, ErrorCode::AmountTooSmall);
+
+        // Move user's base into vault
         token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -252,7 +207,7 @@ pub mod stablecoin {
             amount_in,
         )?;
 
-        // --- 5) Send Φ↓ fee to treasury
+        // Send fee to treasury
         if fee_tokens > 0 {
             let reactor_key = reactor.key();
             let bump = [reactor.authority_bump];
@@ -272,7 +227,7 @@ pub mod stablecoin {
             )?;
         }
 
-        // --- 6) Mint neutron+proton outputs
+        // Mint neutron+proton to user
         let reactor_key = reactor.key();
         let bump = [reactor.authority_bump];
         let signer_seeds: &[&[u8]] =
@@ -319,8 +274,7 @@ pub mod stablecoin {
         Ok(())
     }
 
-    /// Fusion: user returns the exact pro-rata bundle of neutrons+protons,
-    /// gets back base minus Φ↑.
+    /// Fusion: user returns the exact pro-rata bundle of neutrons+protons
     pub fn fusion(ctx: Context<Fusion>, amount_in: u64) -> Result<()> {
         require!(amount_in > 0, ErrorCode::AmountIsZero);
         let reactor = &mut ctx.accounts.reactor;
@@ -337,22 +291,16 @@ pub mod stablecoin {
 
         let m_wad = tokens_to_wad(amount_in, reactor.base_decimals)?;
         let reserve_wad = tokens_to_wad(reserve_tokens, reactor.base_decimals)?;
-        let neutron_supply_wad =
-            tokens_to_wad(neutron_supply_tokens, reactor.neutron_decimals)?;
-        let proton_supply_wad =
-            tokens_to_wad(proton_supply_tokens, reactor.proton_decimals)?;
+        let neutron_supply_wad = tokens_to_wad(neutron_supply_tokens, reactor.neutron_decimals)?;
+        let proton_supply_wad = tokens_to_wad(proton_supply_tokens, reactor.proton_decimals)?;
 
-        // burn shares m * S / R
+        // burn shares -> m * S / R
         let n_burn_wad = mul_div(m_wad, neutron_supply_wad, reserve_wad)?;
         let p_burn_wad = mul_div(m_wad, proton_supply_wad, reserve_wad)?;
 
-        let neutron_burn_tokens =
-            wad_to_tokens(n_burn_wad, reactor.neutron_decimals)?;
-        let proton_burn_tokens =
-            wad_to_tokens(p_burn_wad, reactor.proton_decimals)?;
-        require!(
-            neutron_burn_tokens > 0 && proton_burn_tokens > 0,
-            ErrorCode::AmountTooSmall
+        let neutron_burn_tokens = wad_to_tokens(n_burn_wad, reactor.neutron_decimals)?;
+        let proton_burn_tokens = wad_to_tokens(p_burn_wad, reactor.proton_decimals)?;
+        require!( neutron_burn_tokens > 0 && proton_burn_tokens > 0, ErrorCode::AmountTooSmall
         );
 
         token::burn(
@@ -378,7 +326,6 @@ pub mod stablecoin {
             proton_burn_tokens,
         )?;
 
-        // payout base less Φ↑
         let fee_wad = mul_div(m_wad, reactor.fusion_fee_wad, WAD)?;
         let fee_tokens = wad_to_tokens(fee_wad, reactor.base_decimals)?;
         let net_tokens = amount_in
@@ -388,8 +335,7 @@ pub mod stablecoin {
 
         let reactor_key = reactor.key();
         let bump = [reactor.authority_bump];
-        let signer_seeds: &[&[u8]] =
-            &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
+        let signer_seeds: &[&[u8]] = &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
 
         token::transfer(
             CpiContext::new_with_signer(
@@ -431,14 +377,8 @@ pub mod stablecoin {
         Ok(())
     }
 
-    /// β⁺: proton -> neutron.
-    /// Burn protons, value them in base using P•,
-    /// apply (1 - φβ+(τ)),
-    /// then buy neutrons at P◦.
-    pub fn transmute_proton_to_neutron(
-        ctx: Context<TransmutePlus>,
-        proton_in: u64,
-    ) -> Result<()> {
+    /// β⁺: proton -> neutron. apply (1 - φβ+(τ)),
+    pub fn transmute_proton_to_neutron( ctx: Context<TransmutePlus>, proton_in: u64,) -> Result<()> {
         require!(proton_in > 0, ErrorCode::AmountIsZero);
         let clock = Clock::get()?;
         let reactor = &mut ctx.accounts.reactor;
@@ -446,28 +386,15 @@ pub mod stablecoin {
         let reserve_tokens = load_token_account(&ctx.accounts.base_vault)?.amount;
         let proton_supply_tokens = load_mint(&ctx.accounts.proton_mint)?.supply;
         let neutron_supply_tokens = load_mint(&ctx.accounts.neutron_mint)?.supply;
-
-        // Oracle neutron target peg -> base
         let price_update = &ctx.accounts.price_update;
         let feed_id = get_feed_id_from_hex(&reactor.price_feed_id)?;
-        let price =
-            price_update.get_price_no_older_than(&clock, MAXIMUM_AGE, &feed_id)?;
-        let base_price_wad =
-            convert_pyth_price_to_wad(price.price, price.exponent)?;
+        let price = price_update.get_price_no_older_than(&clock, MAXIMUM_AGE, &feed_id)?;
+        let base_price_wad = convert_pyth_price_to_wad(price.price, price.exponent)?;
 
-        let proton_price_base_wad = reactor.proton_price_in_base(
-            reserve_tokens,
-            proton_supply_tokens,
-            neutron_supply_tokens,
-            base_price_wad,
-        )?;
-        let neutron_price_base_wad = reactor.neutron_price_in_base(
-            reserve_tokens,
-            neutron_supply_tokens,
-            base_price_wad,
-        )?;
+        let proton_price_base_wad = reactor.proton_price_in_base( reserve_tokens, proton_supply_tokens, neutron_supply_tokens, base_price_wad,)?;
+        let neutron_price_base_wad = reactor.neutron_price_in_base( reserve_tokens, neutron_supply_tokens, base_price_wad,)?;
 
-        // burn user's protons first
+        // burn user's protons
         token::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -484,7 +411,7 @@ pub mod stablecoin {
         let proton_in_wad = tokens_to_wad(proton_in, reactor.proton_decimals)?;
         let gross_base_wad = mul_div(proton_in_wad, proton_price_base_wad, WAD)?;
 
-        // decay ledger BEFORE fee calc (advance time)
+        // decay ledger before fee calc
         reactor.decay_ledger(clock.unix_timestamp)?;
 
         // β⁺ fee φβ+(τ)
@@ -494,13 +421,10 @@ pub mod stablecoin {
             .checked_sub(fee_wad)
             .ok_or(error!(ErrorCode::MathOverflow))?;
 
-        // apply fee
         let net_base_wad = mul_div(gross_base_wad, fee_factor, WAD)?;
 
-        // buy neutrons at P◦
         let neutron_out_wad = mul_div(net_base_wad, WAD, neutron_price_base_wad)?;
-        let neutron_out_tokens =
-            wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
+        let neutron_out_tokens = wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
         require!(neutron_out_tokens > 0, ErrorCode::AmountTooSmall);
 
         // mint neutrons
@@ -522,7 +446,7 @@ pub mod stablecoin {
             neutron_out_tokens,
         )?;
 
-        // record signed volume AFTER fee calculation (as +gross_base)
+        // record signed volume after fee calculation
         let gross_base_i128 = gross_base_wad_to_i128(gross_base_wad)?;
         reactor.decayed_volume_base_wad = reactor
             .decayed_volume_base_wad
@@ -541,14 +465,8 @@ pub mod stablecoin {
         Ok(())
     }
 
-    /// β⁻: neutron -> proton.
-    /// Burn neutrons, value them in base using P◦,
-    /// apply (1 - φβ-(τ)),
-    /// then buy protons at P•.
-    pub fn transmute_neutron_to_proton(
-        ctx: Context<TransmuteMinus>,
-        neutron_in: u64,
-    ) -> Result<()> {
+    /// β⁻: neutron -> proton. apply (1 - φβ-(τ)),
+    pub fn transmute_neutron_to_proton(ctx: Context<TransmuteMinus>, neutron_in: u64) -> Result<()> {
         require!(neutron_in > 0, ErrorCode::AmountIsZero);
         let clock = Clock::get()?;
         let reactor = &mut ctx.accounts.reactor;
@@ -557,25 +475,13 @@ pub mod stablecoin {
         let proton_supply_tokens = load_mint(&ctx.accounts.proton_mint)?.supply;
         let neutron_supply_tokens = load_mint(&ctx.accounts.neutron_mint)?.supply;
 
-        // Oracle neutron target peg -> base
         let price_update = &ctx.accounts.price_update;
         let feed_id = get_feed_id_from_hex(&reactor.price_feed_id)?;
-        let price =
-            price_update.get_price_no_older_than(&clock, MAXIMUM_AGE, &feed_id)?;
-        let base_price_wad =
-            convert_pyth_price_to_wad(price.price, price.exponent)?;
+        let price = price_update.get_price_no_older_than(&clock, MAXIMUM_AGE, &feed_id)?;
+        let base_price_wad = convert_pyth_price_to_wad(price.price, price.exponent)?;
 
-        let proton_price_base_wad = reactor.proton_price_in_base(
-            reserve_tokens,
-            proton_supply_tokens,
-            neutron_supply_tokens,
-            base_price_wad,
-        )?;
-        let neutron_price_base_wad = reactor.neutron_price_in_base(
-            reserve_tokens,
-            neutron_supply_tokens,
-            base_price_wad,
-        )?;
+        let proton_price_base_wad = reactor.proton_price_in_base( reserve_tokens, proton_supply_tokens, neutron_supply_tokens, base_price_wad,)?;
+        let neutron_price_base_wad = reactor.neutron_price_in_base( reserve_tokens, neutron_supply_tokens, base_price_wad,)?;
 
         // burn user's neutrons
         token::burn(
@@ -594,8 +500,7 @@ pub mod stablecoin {
         let neutron_in_wad = tokens_to_wad(neutron_in, reactor.neutron_decimals)?;
         let gross_base_wad = mul_div(neutron_in_wad, neutron_price_base_wad, WAD)?;
 
-        // decay ledger BEFORE fee calc (advance time)
-        reactor.decay_ledger(clock.unix_timestamp)?;
+        reactor.decay_ledger(clock.unix_timestamp)?;            // decay ledger before fee calc (advance time)
 
         // β⁻ fee φβ-(τ)
         let reserve_wad = tokens_to_wad(reserve_tokens, reactor.base_decimals)?;
@@ -604,20 +509,16 @@ pub mod stablecoin {
             .checked_sub(fee_wad)
             .ok_or(error!(ErrorCode::MathOverflow))?;
 
-        // apply fee
         let net_base_wad = mul_div(gross_base_wad, fee_factor, WAD)?;
 
-        // buy protons at P•
         let proton_out_wad = mul_div(net_base_wad, WAD, proton_price_base_wad)?;
-        let proton_out_tokens =
-            wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
+        let proton_out_tokens = wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
         require!(proton_out_tokens > 0, ErrorCode::AmountTooSmall);
 
         // mint protons
         let reactor_key = reactor.key();
         let bump = [reactor.authority_bump];
-        let signer_seeds: &[&[u8]] =
-            &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
+        let signer_seeds: &[&[u8]] = &[Reactor::AUTHORITY_PDA_SEED, reactor_key.as_ref(), &bump];
 
         token::mint_to(
             CpiContext::new_with_signer(
@@ -661,9 +562,9 @@ pub struct InitializeParams {
     pub vault_name: String,
     pub fission_fee_wad: u128,
     pub fusion_fee_wad: u128,
-    pub target_reserve_ratio_wad: u128, // kept for UI / legacy
-    pub r_star_wad: u128,               // Gluon Z critical reserve ratio r* (>1.0)
-    pub price_feed_id: String,          // Pyth feed ID (hex string)
+    pub critical_reserve_ratio_wad: u128, 
+    pub r_star_wad: u128,              
+    pub price_feed_id: String,         
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -879,15 +780,14 @@ pub struct Reactor {
     pub neutron_mint: Pubkey,
     pub proton_mint: Pubkey,
 
-    pub price_feed_id: String, // Pyth feed ID (hex string)
-
+    pub price_feed_id: String, 
     pub treasury_authority: Pubkey,
     pub treasury_base_account: Pubkey,
 
     pub fission_fee_wad: u128,            // Φ↓
     pub fusion_fee_wad: u128,             // Φ↑
-    pub target_reserve_ratio_wad: u128,   // legacy / UI only
-    pub r_star_wad: u128,                 // r* (>1.0), Gluon Z
+    pub critical_reserve_ratio_wad: u128, 
+    pub r_star_wad: u128,                 // r* (>1.0)
     pub beta_phi0_wad: u128,              // Φβ0
     pub beta_phi1_wad: u128,              // Φβ1
     pub decay_per_second_wad: u128,       // δ per second in WAD
@@ -906,16 +806,6 @@ impl Reactor {
     pub const MAX_DECIMALS: u8 = 18;
     pub const AUTHORITY_PDA_SEED: &'static [u8] = b"reactor-authority";
 
-    // Rough sizing: 8 (disc) +
-    // 4 + vault_name +
-    // 4 + price_feed_id +
-    // 1 +
-    // 32*7 (pubkeys-ish count) +
-    // 16*7 (u128s) +
-    // 16 (i128) +
-    // 8 (i64) +
-    // 3 (u8s) +
-    // pad
     pub const SPACE: usize =
         8 + 4 + Self::MAX_VAULT_NAME
           + 4 + Self::MAX_PRICE_FEED_ID
@@ -1008,7 +898,6 @@ impl Reactor {
     }
 
     /// P◦ = q * R / S◦
-    /// Bootstrap if S◦ = 0: use the oracle peg (P*◦).
     fn neutron_price_in_base(
         &self,
         reserve_tokens: u64,
@@ -1035,7 +924,7 @@ impl Reactor {
         mul_div(q_wad, r_wad_tokens, s_circ_wad)
     }
 
-    /// Exponential decay of the signed β volume ledger, per §2.2.
+    /// Exponential decay of the signed β volume ledger
     fn decay_ledger(&mut self, now_ts: i64) -> Result<()> {
         if now_ts <= self.last_decay_ts {
             return Ok(());
