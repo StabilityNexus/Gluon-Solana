@@ -109,11 +109,11 @@ export default function HomePage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5, duration: 0.5 }}
                     >
-                      Get exposure to stability with Stable Token.
+                      Get exposure to stability with Stable Token(Neutron).
                       <br />
                       Neutron is the stablecoin pegged to price of 1 backed token.
                       <br /><br />
-                      Get leveraged volatility and yield with leverage yield token.
+                      Get leveraged volatility and yield with leverage yield token(Proton).
                       <br />
                       Proton tokenizes the reserve surplus.
                       <br /><br />
@@ -197,7 +197,7 @@ export default function HomePage() {
       </section>
 
       {/* Research Section */}
-      <section className="relative z-[5]">
+      <section className="relative z-[5] mt-40 mb-32">
         <div className="container mx-auto px-4 py-16 lg:py-24 relative">
           <div className="grid gap-10 lg:grid-cols-2 items-start">
             <motion.div
