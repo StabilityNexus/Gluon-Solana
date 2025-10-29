@@ -32,7 +32,7 @@ if (typeof global !== 'undefined') {
 
 // ===== DEVNET CONFIGURATION =====
 const DEVNET_RPC = 'https://api.devnet.solana.com'
-const PROGRAM_ID = new PublicKey('2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1')
+const PROGRAM_ID = new PublicKey('EsJy3RdEnRt8gsGQC5E6Ksz15vdV5zMevhcpwPapZJoW')
 
 // Pyth Price Feed ID (hex string) for SOL/USD
 const SOL_USD_PRICE_FEED_ID = '0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'
