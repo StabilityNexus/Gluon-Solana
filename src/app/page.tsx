@@ -109,24 +109,24 @@ export default function HomePage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5, duration: 0.5 }}
                     >
-                      Get exposure to stability with leveraged yield token.
+                      Get exposure to stability with Proton.
                       <br />
-                      leveraged yield token is the stablecoin pegged to price of 1 backed token.
+                      Proton is the stablecoin pegged to price of 1 backed token.
                       <br /><br />
-                      Get leveraged volatility and yield with stable token.
+                      Get leveraged volatility and yield with Neutron.
                       <br />
-                      stable token tokenizes the reserve surplus.
+                      Neutron tokenizes the reserve surplus.
                       <br /><br />
-                      Both leveraged yield token and stable token are fully backed by Base-Tokens tokens.
+                      Both Proton and Neutron are fully backed by Base-Tokens tokens.
                     </motion.p>
                   </div>
                 </div>
                 <div className="grid lg:pl-6 grid-cols-1 items-start gap-6">
                   {[
-                    { icon: "⚡", title: "Fission", description: "Splits Base-Tokens tokens into leveraged yield token stable tokens and stable token volatile tokens" },
-                    { icon: "✨", title: "Fusion", description: "Merges leveraged yield token stable tokens and stable token volatile tokens into Base-Tokens tokens" },
-                    { icon: "β⁺", title: "Transmute β⁺", description: "Convert leveraged yield token into stable token while dynamically adjusting fees based on reserve balance" },
-                    { icon: "β⁻", title: "Transmute β⁻", description: "Convert stable token into leveraged yield token with adaptive pricing driven by system health" },
+                    { icon: "⚡", title: "Fission", description: "Splits Base-Tokens tokens into Proton and Neutron" },
+                    { icon: "✨", title: "Fusion", description: "Merges Proton and Neutron back into Base-Tokens" },
+                    { icon: "β⁺", title: "Transmute β⁺", description: "Convert Proton into Neutron while dynamically adjusting fees based on reserve balance" },
+                    { icon: "β⁻", title: "Transmute β⁻", description: "Convert Neutron into Proton with adaptive pricing driven by system health" },
                   ].map((item, index) => (
                     <motion.div
                       key={item.title}
@@ -153,29 +153,29 @@ export default function HomePage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
               >
-                {/* Fission: Base-Tokens -> leveraged yield token + stable token */} 
+                {/* Fission: Base-Tokens -> Proton + Neutron */} 
                 <TokenFlow
                   fromTokens={['Base Token']}
-                  toTokens={['leveraged yield token', 'stable token']}
+                  toTokens={['Proton', 'Neutron']}
                 />
 
-                {/* Fusion: leveraged yield token + stable token -> Base-Tokens */}
+                {/* Fusion: Proton + Neutron -> Base-Tokens */}
                 <TokenFlow
-                  fromTokens={['leveraged yield token', 'stable token']}
+                  fromTokens={['Proton', 'Neutron']}
                   toTokens={['Base Token']}
                   reverse={false}
                 />
 
-                {/* Transmute β⁺: leveraged yield token -> stable token */}
+                {/* Transmute β⁺: Proton -> Neutron */}
                 <TokenFlow
-                  fromTokens={['leveraged yield token']}
-                  toTokens={['stable token']}
+                  fromTokens={['Proton']}
+                  toTokens={['Neutron']}
                 />
 
-                {/* Transmute β⁻: stable token -> leveraged yield token */}
+                {/* Transmute β⁻: Neutron -> Proton */}
                 <TokenFlow
-                  fromTokens={['stable token']}
-                  toTokens={['leveraged yield token']}
+                  fromTokens={['Neutron']}
+                  toTokens={['Proton']}
                 />
               </motion.div>
             </Card>
@@ -214,8 +214,8 @@ export default function HomePage() {
                 Gluon&apos;s architecture is grounded in peer-reviewed cryptography.
               </h3>
               <p className="text-lg leading-relaxed text-muted-foreground">
-                The Gluon dual-token system combines the stability guarantees of the stable token with the
-                reflexive upside captured by the leveraged yield token. Our settlement, oracle, and reserve
+                The Gluon dual-token system combines the stability guarantees of Neutron with the
+                reflexive upside captured by Proton. Our settlement, oracle, and reserve
                 controls follow the Stability Nexus Gluon research note published on IACR ePrint 2025/1372.
               </p>
               <ul className="space-y-3 text-sm lg:text-base text-muted-foreground">
@@ -286,7 +286,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  Programmable fission and fusion mint stable token for price stability and leveraged yield token for reserve upside—executed entirely on Solana for instantaneous settlement.
+                  Programmable fission and fusion mint Neutron for price stability and Proton for reserve upside—executed entirely on Solana for instantaneous settlement.
                 </p>
               </CardContent>
             </Card>
@@ -343,20 +343,6 @@ export default function HomePage() {
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
                   On-chain risk monitors and automated guardrails recalibrate exposure in real time, leveraging Solana&apos;s high-frequency data and compute budget flexibility.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Global Access */}
-            <Card className="p-8 cursor-target bg-black/50 backdrop-blur-md border border-white/40 rounded-none">
-              <CardContent className="p-0">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
-                    Solana Network Coverage
-                  </div>
-                </div>
-                <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  Deploy on Solana mainnet-beta, testnet, or devnet with identical tooling. Ship upgrades quickly while teams iterate with the Anchor framework and Solana CLI.
                 </p>
               </CardContent>
             </Card>

@@ -32,6 +32,10 @@ import { formatTokenAmount, wadToDecimalString, wadToPercentString } from "@/uti
 type ReactorSummary = {
   address: PublicKey
   vaultName: string
+  baseAssetName: string
+  baseAssetSymbol: string
+  peggedAssetName: string
+  peggedAssetSymbol: string
   baseMint: PublicKey
   baseDecimals: number
   baseVault: PublicKey
@@ -45,7 +49,7 @@ type ReactorSummary = {
   priceFeedId: string
   fissionFee: bigint
   fusionFee: bigint
-  targetReserveRatio: bigint
+  criticalReserveRatio: bigint
 }
 
 const containerFontStyle = {
@@ -122,6 +126,10 @@ export default function ExplorerPage() {
             return {
               address: publicKey,
               vaultName: account.vaultName,
+              baseAssetName: account.baseAssetName,
+              baseAssetSymbol: account.baseAssetSymbol,
+              peggedAssetName: account.peggedAssetName,
+              peggedAssetSymbol: account.peggedAssetSymbol,
               baseMint: account.baseMint,
               baseDecimals: account.baseDecimals,
               baseVault: account.baseVault,
@@ -135,7 +143,7 @@ export default function ExplorerPage() {
               priceFeedId,
               fissionFee: BigInt(account.fissionFeeWad.toString()),
               fusionFee: BigInt(account.fusionFeeWad.toString()),
-              targetReserveRatio: BigInt(account.targetReserveRatioWad.toString())
+              criticalReserveRatio: BigInt(account.criticalReserveRatioWad.toString())
             }
           })
         )
@@ -163,7 +171,11 @@ export default function ExplorerPage() {
     return reactors.filter(
       (reactor) =>
         reactor.address.toBase58().toLowerCase().includes(lower) ||
-        reactor.vaultName.toLowerCase().includes(lower)
+        reactor.vaultName.toLowerCase().includes(lower) ||
+        reactor.baseAssetName.toLowerCase().includes(lower) ||
+        reactor.baseAssetSymbol.toLowerCase().includes(lower) ||
+        reactor.peggedAssetName.toLowerCase().includes(lower) ||
+        reactor.peggedAssetSymbol.toLowerCase().includes(lower)
     )
   }, [reactors, searchTerm])
 
@@ -317,6 +329,14 @@ function ReactorCard({ reactor }: ReactorCardProps) {
       <div className="mt-6 space-y-2 text-[11px] uppercase tracking-[0.2em] text-white/55">
         <StatRow label="Reserve" value={formatTokenAmount(reactor.reserve, reactor.baseDecimals)} />
         <StatRow
+          label="Base Asset"
+          value={`${reactor.baseAssetName} (${reactor.baseAssetSymbol || "—"})`}
+        />
+        <StatRow
+          label="Pegged Asset"
+          value={`${reactor.peggedAssetName} (${reactor.peggedAssetSymbol || "—"})`}
+        />
+        <StatRow
           label="Neutron Supply"
           value={formatTokenAmount(reactor.neutronSupply, reactor.neutronDecimals)}
         />
@@ -324,7 +344,7 @@ function ReactorCard({ reactor }: ReactorCardProps) {
           label="Proton Supply"
           value={formatTokenAmount(reactor.protonSupply, reactor.protonDecimals)}
         />
-        <StatRow label="Critical Reserve Ratio" value={`${wadToDecimalString(reactor.targetReserveRatio)}×`} />
+        <StatRow label="Critical Reserve Ratio" value={`${wadToDecimalString(reactor.criticalReserveRatio)}×`} />
         <StatRow
           label="Fees (Fission/Fusion)"
           value={`${wadToPercentString(reactor.fissionFee)} / ${wadToPercentString(reactor.fusionFee)}`}

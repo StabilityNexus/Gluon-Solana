@@ -4,9 +4,11 @@ import { useRef, forwardRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { AnimatedBeam } from "@/components/ui/animated-beam";
-import ErcIcon from "@/components/icons/ErcIcon";
-import StableCoinIcon from "@/components/icons/StableCoinIcon";
-import ReserveCoinIcon from "@/components/icons/ReserveCoinIcon";
+import Image from "next/image";
+
+const NEUTRON_ICON = "/Neutron.svg" as const;
+const PROTON_ICON = "/Proton.svg" as const;
+const BASE_ICON = "/solana.jpg";
 
 const Circle = forwardRef<
   HTMLDivElement,
@@ -64,15 +66,26 @@ const TokenFlow = ({
   }, [fromTokens.length, toTokens.length]);
 
   const getTokenIcon = (token: TokenFlowToken) => {
-    const iconProps = { className: "w-full h-full" };
+    const renderImage = (src: string, alt: string) => (
+      <Image
+        src={src}
+        alt={alt}
+        width={40}
+        height={40}
+        className="rounded-full object-cover"
+        priority={false}
+        style={{ width: "auto", height: "auto" }}
+      />
+    );
+
     switch (token) {
       case 'Fungible':
       case 'Base Token':
-        return <ErcIcon {...iconProps} />;
+        return renderImage(BASE_ICON, "Base Token");
       case 'Neutron':
-        return <StableCoinIcon {...iconProps} />;
+        return renderImage(NEUTRON_ICON, "Neutron");
       case 'Proton':
-        return <ReserveCoinIcon {...iconProps} />;
+        return renderImage(PROTON_ICON, "Proton");
     }
   };
 

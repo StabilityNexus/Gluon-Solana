@@ -26,13 +26,21 @@ import { useStablecoinProgram } from "@/hooks/useStablecoinProgram"
 import { decimalToWad } from "@/utils/amount"
 
 const AUTHORITY_SEED = utils.bytes.utf8.encode("reactor-authority")
+const TREASURY_AUTHORITY = new PublicKey("AbXCVvK1BqVRcNBu9JpJuRnngwkLy6DXG66Anxi2ncBn")
+const DEFAULT_BASE_ASSET_NAME = ""
+const DEFAULT_BASE_ASSET_SYMBOL = ""
+const DEFAULT_PEGGED_ASSET_NAME = ""
+const DEFAULT_PEGGED_ASSET_SYMBOL = ""
 const DEFAULT_BASE_DECIMALS = 6
 
 type FormState = {
   vaultName: string
+  baseAssetName: string
+  baseAssetSymbol: string
+  peggedAssetName: string
+  peggedAssetSymbol: string
   baseMint: string
   priceFeedId: string
-  treasuryAuthority: string
   fissionFeePercent: string
   fusionFeePercent: string
   criticalReserveRatio: string
@@ -47,6 +55,10 @@ type CreatedReactor = {
   neutronMint: string
   protonMint: string
   treasuryBaseAccount: string
+  baseAssetName: string
+  baseAssetSymbol: string
+  peggedAssetName: string
+  peggedAssetSymbol: string
 }
 
 const containerFontStyle = {
@@ -59,20 +71,15 @@ const fieldBaseClasses =
 
 const inputClasses = `${fieldBaseClasses} h-12`
 
-function parsePublicKey(value: string, label: string) {
-  try {
-    return new PublicKey(value)
-  } catch {
-    throw new Error(`${label} is not a valid public key`)
-  }
-}
-
 export default function CreatePage() {
   const [form, setForm] = useState<FormState>({
     vaultName: "",
+    baseAssetName: DEFAULT_BASE_ASSET_NAME,
+    baseAssetSymbol: DEFAULT_BASE_ASSET_SYMBOL,
+    peggedAssetName: DEFAULT_PEGGED_ASSET_NAME,
+    peggedAssetSymbol: DEFAULT_PEGGED_ASSET_SYMBOL,
     baseMint: "",
     priceFeedId: "",
-    treasuryAuthority: "",
     fissionFeePercent: "0.5",
     fusionFeePercent: "0.5",
     criticalReserveRatio: "1.01"
@@ -83,15 +90,6 @@ export default function CreatePage() {
   const { program } = useStablecoinProgram()
   const { publicKey, connected, sendTransaction } = useWallet()
   const { connection } = useConnection()
-
-  useEffect(() => {
-    if (connected && publicKey && !form.treasuryAuthority) {
-      setForm((prev) => ({
-        ...prev,
-        treasuryAuthority: publicKey.toBase58()
-      }))
-    }
-  }, [connected, publicKey, form.treasuryAuthority])
 
   useEffect(() => {
     console.log("Program initialization status:", program ? "Initialized" : "Not initialized")
@@ -111,6 +109,10 @@ export default function CreatePage() {
   const isFormComplete = useMemo(() => {
     return (
       form.vaultName?.trim().length > 0 &&
+      form.baseAssetName?.trim().length > 0 &&
+      form.baseAssetSymbol?.trim().length > 0 &&
+      form.peggedAssetName?.trim().length > 0 &&
+      form.peggedAssetSymbol?.trim().length > 0 &&
       form.baseMint?.trim().length > 0 &&
       form.priceFeedId?.trim().length > 0 &&
       form.fissionFeePercent?.trim().length > 0 &&
@@ -167,15 +169,21 @@ export default function CreatePage() {
       }
       console.log("Using Pyth price feed ID:", priceFeedId)
 
-      console.log("Step 3: Parsing treasury authority...")
-      const treasuryAuthorityPk = form.treasuryAuthority
-        ? parsePublicKey(form.treasuryAuthority, "Treasury authority")
-        : publicKey
-      console.log("Treasury authority:", treasuryAuthorityPk.toBase58())
-
-      console.log("Step 4: Validating form...")
+      console.log("Step 3: Validating form...")
       if (!form.vaultName.trim()) {
         throw new Error("Vault name is required")
+      }
+      if (!form.baseAssetName.trim()) {
+        throw new Error("Base asset name is required")
+      }
+      if (!form.baseAssetSymbol.trim()) {
+        throw new Error("Base asset symbol is required")
+      }
+      if (!form.peggedAssetName.trim()) {
+        throw new Error("Pegged asset name is required")
+      }
+      if (!form.peggedAssetSymbol.trim()) {
+        throw new Error("Pegged asset symbol is required")
       }
 
       const fissionPercent = Number(form.fissionFeePercent)
@@ -201,18 +209,17 @@ export default function CreatePage() {
       
       console.log("Converting:", { fissionFeeDecimal, fusionFeeDecimal, criticalRatioDecimal })
       
-      let fissionFeeWad, fusionFeeWad, rStarWad, targetReserveRatioWad
+      let fissionFeeWad, fusionFeeWad, rStarWad, criticalReserveRatioWad
       try {
         fissionFeeWad = decimalToWad(fissionFeeDecimal)
         fusionFeeWad = decimalToWad(fusionFeeDecimal)
         rStarWad = decimalToWad(criticalRatioDecimal)
-        // For legacy/UI compatibility, set targetReserveRatioWad same as rStarWad
-        targetReserveRatioWad = rStarWad
+        criticalReserveRatioWad = decimalToWad(criticalRatioDecimal)
         console.log("WAD values:", { 
           fissionFeeWad: fissionFeeWad.toString(), 
           fusionFeeWad: fusionFeeWad.toString(), 
           rStarWad: rStarWad.toString(),
-          targetReserveRatioWad: targetReserveRatioWad.toString()
+          criticalReserveRatioWad: criticalReserveRatioWad.toString()
         })
       } catch (wadError) {
         console.error("WAD conversion error:", wadError)
@@ -337,7 +344,7 @@ export default function CreatePage() {
           createInitializeAccountInstruction(
             treasuryBaseKeypair.publicKey,
             baseMintPk,
-            treasuryAuthorityPk
+            TREASURY_AUTHORITY
           )
         ]
         
@@ -374,9 +381,13 @@ export default function CreatePage() {
         const initializeIx = await program.methods
           .initialize({
             vaultName: form.vaultName.trim(),
+            baseAssetName: form.baseAssetName.trim(),
+            baseAssetSymbol: form.baseAssetSymbol.trim(),
+            peggedAssetName: form.peggedAssetName.trim(),
+            peggedAssetSymbol: form.peggedAssetSymbol.trim(),
             fissionFeeWad,
             fusionFeeWad,
-            targetReserveRatioWad,
+            criticalReserveRatioWad,
             rStarWad,
             priceFeedId: priceFeedId
           })
@@ -388,7 +399,6 @@ export default function CreatePage() {
             baseVault: baseVaultKeypair.publicKey,
             neutronMint: neutronMintKeypair.publicKey,
             protonMint: protonMintKeypair.publicKey,
-            treasuryAuthority: treasuryAuthorityPk,
             treasuryBaseAccount: treasuryBaseKeypair.publicKey
           })
           .instruction()
@@ -452,13 +462,20 @@ export default function CreatePage() {
         baseVault: baseVaultKeypair.publicKey.toBase58(),
         neutronMint: neutronMintKeypair.publicKey.toBase58(),
         protonMint: protonMintKeypair.publicKey.toBase58(),
-        treasuryBaseAccount: treasuryBaseKeypair.publicKey.toBase58()
+        treasuryBaseAccount: treasuryBaseKeypair.publicKey.toBase58(),
+        baseAssetName: form.baseAssetName.trim(),
+        baseAssetSymbol: form.baseAssetSymbol.trim(),
+        peggedAssetName: form.peggedAssetName.trim(),
+        peggedAssetSymbol: form.peggedAssetSymbol.trim()
       })
       setForm({
         vaultName: "",
+        baseAssetName: DEFAULT_BASE_ASSET_NAME,
+        baseAssetSymbol: DEFAULT_BASE_ASSET_SYMBOL,
+        peggedAssetName: DEFAULT_PEGGED_ASSET_NAME,
+        peggedAssetSymbol: DEFAULT_PEGGED_ASSET_SYMBOL,
         baseMint: "",
         priceFeedId: "",
-        treasuryAuthority: publicKey?.toBase58() || "",
         fissionFeePercent: "0.5",
         fusionFeePercent: "0.5",
         criticalReserveRatio: "1.01"
@@ -616,6 +633,56 @@ function FormFields({ form, handleChange }: FormFieldsProps) {
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <Label className="text-[11px] uppercase tracking-[0.4em] text-white/60">
+            Base Asset Name
+          </Label>
+          <Input
+            placeholder="USD Coin"
+            value={form.baseAssetName}
+            onChange={handleChange("baseAssetName")}
+            className={inputClasses}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-[11px] uppercase tracking-[0.4em] text-white/60">
+            Base Asset Symbol
+          </Label>
+          <Input
+            placeholder="USDC"
+            value={form.baseAssetSymbol}
+            onChange={handleChange("baseAssetSymbol")}
+            className={inputClasses}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label className="text-[11px] uppercase tracking-[0.4em] text-white/60">
+            Pegged Asset Name
+          </Label>
+          <Input
+            placeholder="Gluon Dollar"
+            value={form.peggedAssetName}
+            onChange={handleChange("peggedAssetName")}
+            className={inputClasses}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-[11px] uppercase tracking-[0.4em] text-white/60">
+            Pegged Asset Symbol
+          </Label>
+          <Input
+            placeholder="GLD"
+            value={form.peggedAssetSymbol}
+            onChange={handleChange("peggedAssetSymbol")}
+            className={inputClasses}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label className="text-[11px] uppercase tracking-[0.4em] text-white/60">
             Fission Fee (%)
           </Label>
           <Input
@@ -666,18 +733,6 @@ function FormFields({ form, handleChange }: FormFieldsProps) {
         <p className="text-[9px] text-white/40 tracking-[0.15em] mt-1">
           SOL/USD: 0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d
         </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-[11px] uppercase tracking-[0.4em] text-white/60">
-          Treasury Authority (Optional)
-        </Label>
-        <Input
-          placeholder="Defaults to connected wallet"
-          value={form.treasuryAuthority}
-          onChange={handleChange("treasuryAuthority")}
-          className={`${inputClasses} font-mono`}
-        />
       </div>
     </div>
   )
@@ -734,7 +789,19 @@ function ReactorSummary({ createdReactor }: ReactorSummaryProps) {
     { label: "Base Vault", value: createdReactor.baseVault },
     { label: "Neutron Mint", value: createdReactor.neutronMint },
     { label: "Proton Mint", value: createdReactor.protonMint },
-    { label: "Treasury Base Account", value: createdReactor.treasuryBaseAccount }
+    { label: "Treasury Base Account", value: createdReactor.treasuryBaseAccount },
+    {
+      label: "Base Asset",
+      value: createdReactor.baseAssetName
+        ? `${createdReactor.baseAssetName} (${createdReactor.baseAssetSymbol || "—"})`
+        : "—"
+    },
+    {
+      label: "Pegged Asset",
+      value: createdReactor.peggedAssetName
+        ? `${createdReactor.peggedAssetName} (${createdReactor.peggedAssetSymbol || "—"})`
+        : "—"
+    }
   ]
 
   return (
