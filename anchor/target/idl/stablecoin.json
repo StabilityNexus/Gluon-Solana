@@ -1,5 +1,5 @@
 {
-  "address": "AXtZmZ41Eq7NusPoEbFw2k4haaXHQxBrCrcg4y1oW7Eh",
+  "address": "2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1",
   "metadata": {
     "name": "stablecoin",
     "version": "0.1.0",
@@ -9,11 +9,6 @@
   "instructions": [
     {
       "name": "fission",
-      "docs": [
-        "Fission: user deposits base, gets neutrons+protons in proportion",
-        "to pre-fission S◦/R and S•/R, minus Φ↓ fee.",
-        "Bootstrap logic kept as-is for first deposit."
-      ],
       "discriminator": [
         106,
         52,
@@ -107,6 +102,9 @@
           ]
         },
         {
+          "name": "price_update"
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
@@ -121,8 +119,7 @@
     {
       "name": "fusion",
       "docs": [
-        "Fusion: user returns the exact pro-rata bundle of neutrons+protons,",
-        "gets back base minus Φ↑."
+        "Fusion: user returns the exact pro-rata bundle of neutrons+protons"
       ],
       "discriminator": [
         206,
@@ -298,9 +295,6 @@
           "name": "proton_mint"
         },
         {
-          "name": "treasury_authority"
-        },
-        {
           "name": "treasury_base_account",
           "writable": true
         },
@@ -343,10 +337,7 @@
         },
         {
           "name": "treasury_authority",
-          "signer": true,
-          "relations": [
-            "reactor"
-          ]
+          "signer": true
         }
       ],
       "args": [
@@ -363,10 +354,7 @@
     {
       "name": "transmute_neutron_to_proton",
       "docs": [
-        "β⁻: neutron -> proton.",
-        "Burn neutrons, value them in base using P◦,",
-        "apply (1 - φβ-(τ)),",
-        "then buy protons at P•."
+        "β⁻: neutron -> proton. apply (1 - φβ-(τ)),"
       ],
       "discriminator": [
         5,
@@ -467,10 +455,7 @@
     {
       "name": "transmute_proton_to_neutron",
       "docs": [
-        "β⁺: proton -> neutron.",
-        "Burn protons, value them in base using P•,",
-        "apply (1 - φβ+(τ)),",
-        "then buy neutrons at P◦."
+        "β⁺: proton -> neutron. apply (1 - φβ+(τ)),"
       ],
       "discriminator": [
         1,
@@ -722,76 +707,86 @@
     },
     {
       "code": 6011,
+      "name": "MissingPriceUpdate",
+      "msg": "Missing or invalid price update account"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidAssetMetadata",
+      "msg": "Invalid asset metadata"
+    },
+    {
+      "code": 6013,
       "name": "InvalidPriceAccount",
       "msg": "Invalid or mismatched price account"
     },
     {
-      "code": 6012,
+      "code": 6014,
       "name": "PriceNotAvailable",
       "msg": "No recent price available from oracle"
     },
     {
-      "code": 6013,
+      "code": 6015,
       "name": "InvalidPriceValue",
       "msg": "Oracle price is not positive"
     },
     {
-      "code": 6014,
+      "code": 6016,
       "name": "AmountTooSmall",
       "msg": "Amount too small after applying fees or conversions"
     },
     {
-      "code": 6015,
+      "code": 6017,
       "name": "ZeroReserve",
       "msg": "Reserve balance is zero"
     },
     {
-      "code": 6016,
+      "code": 6018,
       "name": "ZeroSupply",
       "msg": "Supply is zero"
     },
     {
-      "code": 6017,
+      "code": 6019,
       "name": "AccountDataBorrowFailed",
       "msg": "Failed to borrow account data"
     },
     {
-      "code": 6018,
+      "code": 6020,
       "name": "InvalidTokenAccount",
       "msg": "Invalid token account data"
     },
     {
-      "code": 6019,
+      "code": 6021,
       "name": "InvalidMintAccount",
       "msg": "Invalid mint account data"
     },
     {
-      "code": 6020,
+      "code": 6022,
       "name": "ValueTooLarge",
       "msg": "Value exceeds supported range"
     },
     {
-      "code": 6021,
+      "code": 6023,
       "name": "ExponentTooLarge",
       "msg": "Exponent exceeds supported range for pow10"
     },
     {
-      "code": 6022,
+      "code": 6024,
       "name": "MissingBump",
       "msg": "Missing PDA bump"
     },
     {
-      "code": 6023,
+      "code": 6025,
       "name": "InvalidBetaParam",
       "msg": "Invalid beta parameters"
     },
     {
-      "code": 6024,
+      "code": 6026,
       "name": "InvalidVaultName",
       "msg": "Invalid vault name"
     },
     {
-      "code": 6025,
+      "code": 6027,
       "name": "InvalidPriceFeedId",
       "msg": "Invalid price feed ID"
     }
@@ -915,6 +910,22 @@
             "type": "string"
           },
           {
+            "name": "base_asset_name",
+            "type": "string"
+          },
+          {
+            "name": "base_asset_symbol",
+            "type": "string"
+          },
+          {
+            "name": "pegged_asset_name",
+            "type": "string"
+          },
+          {
+            "name": "pegged_asset_symbol",
+            "type": "string"
+          },
+          {
             "name": "fission_fee_wad",
             "type": "u128"
           },
@@ -923,7 +934,7 @@
             "type": "u128"
           },
           {
-            "name": "target_reserve_ratio_wad",
+            "name": "critical_reserve_ratio_wad",
             "type": "u128"
           },
           {
@@ -1059,6 +1070,22 @@
             "type": "string"
           },
           {
+            "name": "base_asset_name",
+            "type": "string"
+          },
+          {
+            "name": "base_asset_symbol",
+            "type": "string"
+          },
+          {
+            "name": "pegged_asset_name",
+            "type": "string"
+          },
+          {
+            "name": "pegged_asset_symbol",
+            "type": "string"
+          },
+          {
             "name": "base_mint",
             "type": "pubkey"
           },
@@ -1079,10 +1106,6 @@
             "type": "string"
           },
           {
-            "name": "treasury_authority",
-            "type": "pubkey"
-          },
-          {
             "name": "treasury_base_account",
             "type": "pubkey"
           },
@@ -1095,7 +1118,7 @@
             "type": "u128"
           },
           {
-            "name": "target_reserve_ratio_wad",
+            "name": "critical_reserve_ratio_wad",
             "type": "u128"
           },
           {
