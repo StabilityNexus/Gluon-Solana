@@ -4,11 +4,9 @@ import { useRef, forwardRef, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { AnimatedBeam } from "@/components/ui/animated-beam";
-import Image from "next/image";
-
-const NEUTRON_ICON = "/Neutron.svg" as const;
-const PROTON_ICON = "/Proton.svg" as const;
-const BASE_ICON = "/solana.jpg";
+import ErcIcon from "@/components/icons/ErcIcon";
+import StableCoinIcon from "@/components/icons/StableCoinIcon";
+import ReserveCoinIcon from "@/components/icons/ReserveCoinIcon";
 
 const Circle = forwardRef<
   HTMLDivElement,
@@ -29,7 +27,15 @@ const Circle = forwardRef<
 
 Circle.displayName = "Circle";
 
-type TokenFlowToken = 'Fungible' | 'Neutron' | 'Proton' | 'Base Token';
+type TokenFlowToken =
+  | "Fungible"
+  | "Neutron"
+  | "Proton"
+  | "Base Token"
+  | "stable token"
+  | "Stable Token"
+  | "leveraged yield token"
+  | "Leveraged Yield Token";
 
 const TokenFlow = ({
   fromTokens,
@@ -66,27 +72,18 @@ const TokenFlow = ({
   }, [fromTokens.length, toTokens.length]);
 
   const getTokenIcon = (token: TokenFlowToken) => {
-    const renderImage = (src: string, alt: string) => (
-      <Image
-        src={src}
-        alt={alt}
-        width={40}
-        height={40}
-        className="rounded-full object-cover"
-        priority={false}
-        style={{ width: "auto", height: "auto" }}
-      />
-    );
+    const iconProps = { className: "w-full h-full" };
+    const normalized = token.toLowerCase();
 
-    switch (token) {
-      case 'Fungible':
-      case 'Base Token':
-        return renderImage(BASE_ICON, "Base Token");
-      case 'Neutron':
-        return renderImage(NEUTRON_ICON, "Neutron");
-      case 'Proton':
-        return renderImage(PROTON_ICON, "Proton");
+    if (normalized === "stable token" || normalized === "neutron") {
+      return <StableCoinIcon {...iconProps} />;
     }
+
+    if (normalized === "leveraged yield token" || normalized === "proton") {
+      return <ReserveCoinIcon {...iconProps} />;
+    }
+
+    return <ErcIcon {...iconProps} />;
   };
 
   return (
@@ -113,7 +110,9 @@ const TokenFlow = ({
               <Circle ref={(el) => { fromRefs.current[index] = el; }}>
                 {getTokenIcon(token)}
               </Circle>
-              <span className="text-xs font-medium text-gray-300">{token}</span>
+              <span className="text-xs font-medium text-gray-900 dark:text-gray-200">
+                {token}
+              </span>
             </motion.div>
           ))}
         </div>
@@ -131,7 +130,9 @@ const TokenFlow = ({
               <Circle ref={(el) => { toRefs.current[index] = el; }}>
                 {getTokenIcon(token)}
               </Circle>
-              <span className="text-xs font-medium text-gray-300">{token}</span>
+              <span className="text-xs font-medium text-gray-900 dark:text-gray-200">
+                {token}
+              </span>
             </motion.div>
           ))}
         </div>
