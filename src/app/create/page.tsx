@@ -33,6 +33,39 @@ const DEFAULT_PEGGED_ASSET_NAME = ""
 const DEFAULT_PEGGED_ASSET_SYMBOL = ""
 const DEFAULT_BASE_DECIMALS = 6
 
+const PRICE_FEED_HEX_PATTERN = /^0x[a-fA-F0-9]{64}$/
+
+const hexFromBytes = (bytes: Uint8Array) =>
+  `0x${Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")}`
+
+const normalizePriceFeedIdInput = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    throw new Error("Pyth price feed ID is required")
+  }
+
+  if (PRICE_FEED_HEX_PATTERN.test(trimmed)) {
+    return {
+      normalized: trimmed.toLowerCase(),
+      format: "hex"
+    }
+  }
+
+  try {
+    const priceFeedKey = new PublicKey(trimmed)
+    return {
+      normalized: hexFromBytes(priceFeedKey.toBytes()),
+      format: "base58"
+    }
+  } catch {
+    throw new Error(
+      "Invalid Pyth price feed ID. Provide either a 0x-prefixed 64-character hex string or a valid base58 price account address."
+    )
+  }
+}
+
 type FormState = {
   vaultName: string
   baseAssetName: string
@@ -159,15 +192,13 @@ export default function CreatePage() {
       }
 
       console.log("Step 2: Validating Pyth price feed ID...")
-      const priceFeedId = form.priceFeedId.trim()
-      if (!priceFeedId) {
-        throw new Error("Pyth price feed ID is required")
-      }
-      // Validate hex format (should be 0x followed by 64 hex chars)
-      if (!priceFeedId.match(/^0x[a-fA-F0-9]{64}$/)) {
-        throw new Error("Invalid Pyth price feed ID format. Expected: 0x followed by 64 hex characters")
-      }
-      console.log("Using Pyth price feed ID:", priceFeedId)
+      const priceFeedInput = form.priceFeedId.trim()
+      const { normalized: priceFeedId, format: priceFeedFormat } = normalizePriceFeedIdInput(priceFeedInput)
+      console.log(
+        "Using Pyth price feed ID:",
+        priceFeedId,
+        priceFeedFormat === "base58" ? `(converted from ${priceFeedInput})` : "(hex input)"
+      )
 
       console.log("Step 3: Validating form...")
       if (!form.vaultName.trim()) {
