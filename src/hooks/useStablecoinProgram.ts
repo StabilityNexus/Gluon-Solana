@@ -4,13 +4,11 @@ import { useMemo } from 'react'
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor'
 import { PublicKey } from '@solana/web3.js'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
-import { getStablecoinProgram, getStablecoinProgramIdForCluster } from '@/lib/stablecoin-program'
-import { useSolanaCluster } from '@/providers/WalletProvider'
+import { getStablecoinProgram } from '@/lib/stablecoin-program'
 
 export function useStablecoinProgram() {
   const { connection } = useConnection()
   const walletAdapter = useWallet()
-  const { cluster } = useSolanaCluster()
 
   const anchorWallet = useMemo<Wallet>(() => {
     const fallbackPublicKey = walletAdapter.publicKey ?? PublicKey.default
@@ -37,9 +35,7 @@ export function useStablecoinProgram() {
     [connection, anchorWallet],
   )
 
-  const programId = useMemo(() => getStablecoinProgramIdForCluster(cluster), [cluster])
+  const program = useMemo(() => getStablecoinProgram(provider), [provider])
 
-  const program = useMemo(() => getStablecoinProgram(provider, programId), [provider, programId])
-
-  return { program, provider, walletAdapter, cluster, programId }
+  return { program, provider, walletAdapter }
 }

@@ -11,9 +11,6 @@ Stablecoin = "2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1"
 [programs.devnet]
 Stablecoin = "2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1"
 
-[programs.mainnet]
-Stablecoin = "BaLj5dEV9zfzXbdUDDDfNsZHzYvgE7KeByTAkekwTows"
-
 [registry]
 url = "https://api.apr.dev"
 
