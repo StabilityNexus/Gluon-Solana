@@ -7,17 +7,20 @@ import { useStablecoinProgram } from './useStablecoinProgram'
 export type ReactorData = {
   address: PublicKey
   vaultName: string
+  baseAssetName: string
+  baseAssetSymbol: string
+  peggedAssetName: string
+  peggedAssetSymbol: string
   baseMint: PublicKey
   neutronMint: PublicKey
   protonMint: PublicKey
   baseVault: PublicKey
-  treasuryAuthority: PublicKey
   treasuryBaseAccount: PublicKey
   priceFeedId: string
   fissionFeeWad: bigint
   fusionFeeWad: bigint
-  targetReserveRatioWad: bigint  // kept for legacy/UI
-  rStarWad: bigint  // critical reserve ratio r* (Gluon Z)
+  criticalReserveRatioWad: bigint
+  rStarWad: bigint
   baseDecimals: number
   neutronDecimals: number
   protonDecimals: number
@@ -93,16 +96,19 @@ export function useReactorData(address: string | null | undefined, refreshKey = 
           data: {
             address: reactorPk,
             vaultName: account.vaultName,
+            baseAssetName: account.baseAssetName,
+            baseAssetSymbol: account.baseAssetSymbol,
+            peggedAssetName: account.peggedAssetName,
+            peggedAssetSymbol: account.peggedAssetSymbol,
             baseMint: account.baseMint,
             neutronMint: account.neutronMint,
             protonMint: account.protonMint,
             baseVault: account.baseVault,
-            treasuryAuthority: account.treasuryAuthority,
             treasuryBaseAccount: account.treasuryBaseAccount,
             priceFeedId: normalizePriceFeedId(account.priceFeedId),
             fissionFeeWad: BigInt(account.fissionFeeWad.toString()),
             fusionFeeWad: BigInt(account.fusionFeeWad.toString()),
-            targetReserveRatioWad: BigInt(account.targetReserveRatioWad.toString()),
+            criticalReserveRatioWad: BigInt(account.criticalReserveRatioWad.toString()),
             rStarWad: BigInt(account.rStarWad.toString()),
             baseDecimals: baseMintInfo.decimals,
             neutronDecimals: neutronMintInfo.decimals,

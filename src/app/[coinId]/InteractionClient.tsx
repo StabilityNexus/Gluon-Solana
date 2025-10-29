@@ -144,6 +144,7 @@ import {
 } from "@/utils/amount"
 
 const AUTHORITY_SEED = utils.bytes.utf8.encode("reactor-authority")
+const TREASURY_AUTHORITY = new PublicKey("AbXCVvK1BqVRcNBu9JpJuRnngwkLy6DXG66Anxi2ncBn")
 const WAD = BigInt("1000000000000000000")
 
 type TokenOption = "BASE" | "BUNDLE" | "NEUTRON" | "PROTON"
@@ -197,6 +198,19 @@ type TransactionPreview = {
   }
   basePrice?: number
   basePriceWad?: bigint
+}
+
+type InfoRow = {
+  label: string
+  value: string
+  monospace?: boolean
+  emphasize?: boolean
+}
+
+type InfoSection = {
+  title: string
+  description?: string
+  items: InfoRow[]
 }
 
 function trimFormattedAmount(value: string, precision = 6) {
@@ -534,15 +548,45 @@ export default function InteractionClient() {
       let protonOut: bigint
 
       if (isBootstrap) {
-        // Bootstrap: Use 400% reserve ratio (4:1)
-        // Each token = net_base / 4
-        const BOOTSTRAP_RESERVE_RATIO_WAD = WAD * 4n
-        
-        const neutronOutWad = (netWad * WAD) / BOOTSTRAP_RESERVE_RATIO_WAD
-        const protonOutWad = (netWad * WAD) / BOOTSTRAP_RESERVE_RATIO_WAD
-        
-        neutronOut = (neutronOutWad * BigInt(10 ** reactor.neutronDecimals)) / WAD
-        protonOut = (protonOutWad * BigInt(10 ** reactor.protonDecimals)) / WAD
+        if (!priceData) {
+          setFissionPreview(null)
+          return
+        }
+
+        const basePriceWad = pythPriceToWad(priceData)
+        if (basePriceWad === 0n) {
+          setFissionPreview(null)
+          return
+        }
+
+        const pow10 = (decimals: number) => BigInt(10) ** BigInt(decimals)
+
+        const depositValueWad = (netWad * basePriceWad) / WAD
+        if (depositValueWad === 0n) {
+          setFissionPreview(null)
+          return
+        }
+
+        const neutronValueWad = depositValueWad / 3n
+        if (neutronValueWad === 0n) {
+          setFissionPreview(null)
+          return
+        }
+
+        const baseForNeutronWad = (neutronValueWad * WAD) / basePriceWad
+        if (baseForNeutronWad === 0n || baseForNeutronWad >= netWad) {
+          setFissionPreview(null)
+          return
+        }
+
+        const protonBaseWad = netWad - baseForNeutronWad
+        if (protonBaseWad === 0n) {
+          setFissionPreview(null)
+          return
+        }
+
+        neutronOut = (neutronValueWad * pow10(reactor.neutronDecimals)) / WAD
+        protonOut = (protonBaseWad * pow10(reactor.protonDecimals)) / WAD
       } else {
         // Normal case: proportional to reserve shares
         const reserveWad = (reactor.reserveTokens * WAD) / BigInt(10 ** reactor.baseDecimals)
@@ -727,16 +771,18 @@ export default function InteractionClient() {
     return recipient.trim().toLowerCase() === publicKey.toBase58().toLowerCase()
   }, [publicKey, recipient])
 
-  const baseSymbolText = "Base"
+  const baseAssetName = reactor?.baseAssetName || "Base Asset"
+  const baseSymbolText = reactor?.baseAssetSymbol || reactor?.baseAssetName || "BASE"
+  const peggedAssetName = reactor?.peggedAssetName || "Pegged Asset"
+  const peggedSymbolText = reactor?.peggedAssetSymbol || reactor?.peggedAssetName || "PEG"
   const neutronSymbolText = "Neutron"
   const protonSymbolText = "Proton"
   const bundleLabel = `${neutronSymbolText} + ${protonSymbolText}`
-  const peggedSymbolText = "Peg"
 
   const toLabel = useMemo(() => {
     switch (toToken) {
       case "BASE":
-        return baseSymbolText
+        return baseAssetName
       case "NEUTRON":
         return neutronSymbolText
       case "PROTON":
@@ -746,7 +792,7 @@ export default function InteractionClient() {
       default:
         return "Token"
     }
-  }, [toToken, baseSymbolText, neutronSymbolText, protonSymbolText, bundleLabel])
+  }, [toToken, baseAssetName, neutronSymbolText, protonSymbolText, bundleLabel])
 
   const fromBalanceDisplay = useMemo(() => {
     if (!reactor || !balances) {
@@ -894,15 +940,15 @@ export default function InteractionClient() {
         title: "Fission breakdown",
         rows: [
           {
-            label: "Base supplied",
+            label: `${baseAssetName} supplied`,
             value: formatTokenValue(fissionBreakdown.baseIn, reactor.baseDecimals, baseSymbolText)
           },
           {
-            label: "Fee retained",
+            label: `Fee retained (${baseSymbolText})`,
             value: formatTokenValue(fissionBreakdown.fee, reactor.baseDecimals, baseSymbolText)
           },
           {
-            label: "Net base",
+            label: `Net ${baseAssetName}`,
             value: formatTokenValue(fissionBreakdown.netBase, reactor.baseDecimals, baseSymbolText)
           },
           {
@@ -910,6 +956,7 @@ export default function InteractionClient() {
             value: formatTokenValue(
               fissionBreakdown.neutronOut,
               reactor.neutronDecimals,
+              neutronSymbolText
             )
           },
           {
@@ -917,6 +964,7 @@ export default function InteractionClient() {
             value: formatTokenValue(
               fissionBreakdown.protonOut,
               reactor.protonDecimals,
+              protonSymbolText
             )
           },
           {
@@ -934,7 +982,7 @@ export default function InteractionClient() {
         title: "Fusion breakdown",
         rows: [
           {
-            label: "Base requested",
+            label: `${baseAssetName} requested`,
             value: formatTokenValue(
               fusionBreakdown.netBase,
               reactor.baseDecimals,
@@ -942,7 +990,7 @@ export default function InteractionClient() {
             )
           },
           {
-            label: "Base before fee",
+            label: `${baseAssetName} before fee`,
             value: formatTokenValue(
               fusionBreakdown.requestedBase,
               reactor.baseDecimals,
@@ -950,7 +998,7 @@ export default function InteractionClient() {
             )
           },
           {
-            label: "Fee withheld",
+            label: `Fee withheld (${baseSymbolText})`,
             value: formatTokenValue(fusionBreakdown.fee, reactor.baseDecimals, baseSymbolText)
           },
           {
@@ -979,6 +1027,7 @@ export default function InteractionClient() {
     route,
     fissionBreakdown,
     fusionBreakdown,
+    baseAssetName,
     baseSymbolText,
     neutronSymbolText,
     protonSymbolText,
@@ -988,9 +1037,9 @@ export default function InteractionClient() {
   const swapDescription = useMemo(() => {
     switch (route) {
       case "FISSION":
-        return `Convert ${baseSymbolText} into ${neutronSymbolText} + ${protonSymbolText}.`
+        return `Convert ${baseAssetName} into ${neutronSymbolText} + ${protonSymbolText}.`
       case "FUSION":
-        return `Redeem ${neutronSymbolText} + ${protonSymbolText} back into ${baseSymbolText}.`
+        return `Redeem ${neutronSymbolText} + ${protonSymbolText} back into ${baseAssetName}.`
       case "PROTON_TO_NEUTRON":
         return `Transmute ${protonSymbolText} into ${neutronSymbolText}.`
       case "NEUTRON_TO_PROTON":
@@ -998,12 +1047,12 @@ export default function InteractionClient() {
       default:
         return "Select a supported conversion pair to continue."
     }
-  }, [route, baseSymbolText, neutronSymbolText, protonSymbolText])
+  }, [route, baseAssetName, neutronSymbolText, protonSymbolText])
 
   const actionLabel = useMemo(() => {
     switch (route) {
       case "FISSION":
-        return "Split Base"
+        return `Split ${baseAssetName}`
       case "FUSION":
         return "Merge Tokens"
       case "PROTON_TO_NEUTRON":
@@ -1013,7 +1062,7 @@ export default function InteractionClient() {
       default:
         return "Select Pair"
     }
-  }, [route])
+  }, [route, baseAssetName])
 
   const fromInputReadOnly = route === "FUSION"
   const fromInputType = fromInputReadOnly ? "text" : "number"
@@ -1046,7 +1095,7 @@ export default function InteractionClient() {
   const toInputPlaceholder = useMemo(() => {
     switch (route) {
       case "FUSION":
-        return `Enter the amount of ${baseSymbolText} you want back`
+        return `Enter the amount of ${baseAssetName} you want back`
       case "FISSION":
         return fissionMintSummary || "Minted bundle appears here"
       case "PROTON_TO_NEUTRON":
@@ -1058,7 +1107,7 @@ export default function InteractionClient() {
     }
   }, [
     route,
-    baseSymbolText,
+    baseAssetName,
     fissionMintSummary,
     protonToNeutronSummary,
     neutronToProtonSummary,
@@ -1092,15 +1141,15 @@ export default function InteractionClient() {
     if (!derivedTokenPrices) {
       return isLoadingPrice ? "Loading…" : "—"
     }
-    return `$${formatWad(derivedTokenPrices.neutronPricePegWad, 4)}`
-  }, [derivedTokenPrices, isLoadingPrice])
+    return `${formatWad(derivedTokenPrices.neutronPricePegWad, 4)} ${peggedSymbolText}`
+  }, [derivedTokenPrices, isLoadingPrice, peggedSymbolText])
 
   const protonPegPriceDisplay = useMemo(() => {
     if (!derivedTokenPrices) {
       return isLoadingPrice ? "Loading…" : "—"
     }
-    return `$${formatWad(derivedTokenPrices.protonPricePegWad, 4)}`
-  }, [derivedTokenPrices, isLoadingPrice])
+    return `${formatWad(derivedTokenPrices.protonPricePegWad, 4)} ${peggedSymbolText}`
+  }, [derivedTokenPrices, isLoadingPrice, peggedSymbolText])
 
   const priceUpdatedDisplay = useMemo(() => {
     if (!priceData || priceData.publishTime <= 0) {
@@ -1239,13 +1288,34 @@ export default function InteractionClient() {
     [connection, publicKey, refreshBalances, sendTransaction]
   )
 
-  const requireWallet = useCallback(() => {
-    if (!connected || !publicKey) {
-      toast.error("Connect your wallet to continue")
-      return false
+const requireWallet = useCallback(() => {
+  if (!connected || !publicKey) {
+    toast.error("Connect your wallet to continue")
+    return false
+  }
+  return true
+}, [connected, publicKey])
+
+  const createPythWalletAdapter = useCallback((): Wallet => {
+    if (!publicKey) {
+      throw new Error("Wallet is not connected")
     }
-    return true
-  }, [connected, publicKey])
+    if (!window.solana || typeof window.solana.signTransaction !== "function") {
+      throw new Error("Wallet does not support signing Pyth transactions")
+    }
+
+    return {
+      publicKey,
+      signTransaction: async (transaction: Transaction) => {
+        const signed = await window.solana!.signTransaction(transaction)
+        return signed as Transaction
+      },
+      signAllTransactions: async (transactions: Transaction[]) => {
+        const signed = await window.solana!.signAllTransactions(transactions)
+        return signed as Transaction[]
+      }
+    } as Wallet
+  }, [publicKey])
 
   const handleFission = useCallback(async () => {
     if (route !== "FISSION") {
@@ -1283,32 +1353,71 @@ export default function InteractionClient() {
         ensureAta(reactor.protonMint)
       ])
 
-      const instructions = [
-        ...baseAta.instructions,
-        ...neutronAta.instructions,
-        ...protonAta.instructions,
-        await program.methods
-          .fission(amountIn)
-          .accountsStrict({
-            reactor: reactor.address,
-            reactorAuthority: reactorAuthority,
-            userAuthority: publicKey!,
-            baseVault: reactor.baseVault,
-            neutronMint: reactor.neutronMint,
-            protonMint: reactor.protonMint,
-            userBaseAccount: baseAta.address,
-            userNeutronAccount: neutronAta.address,
-            userProtonAccount: protonAta.address,
-            treasuryBaseAccount: reactor.treasuryBaseAccount,
-            tokenProgram: TOKEN_PROGRAM_ID
-          })
-          .instruction()
-      ]
+      if (!reactor.priceFeedId) {
+        toast.error("Reactor missing price feed configuration")
+        return
+      }
 
-      const signature = await sendInstructions(instructions)
-      toast.success("Fission transaction confirmed", {
-        description: `Signature: ${signature}`
+      toast.info("Fetching latest price from Pyth Hermes API...")
+      const { priceUpdateData, currentPrice } = await getPythPriceUpdateData(reactor.priceFeedId)
+
+      const pythSolanaReceiver = new PythSolanaReceiver({
+        connection,
+        wallet: createPythWalletAdapter()
       })
+
+      const transactionBuilder = pythSolanaReceiver.newTransactionBuilder({
+        closeUpdateAccounts: true
+      })
+
+      await transactionBuilder.addPostPriceUpdates(priceUpdateData)
+
+      await transactionBuilder.addPriceConsumerInstructions(
+        async (
+          getPriceUpdateAccount: (priceFeedId: string) => PublicKey
+        ): Promise<InstructionWithEphemeralSigners[]> => {
+          const fissionInstruction = await program.methods
+            .fission(amountIn)
+            .accountsStrict({
+              reactor: reactor.address,
+              reactorAuthority: reactorAuthority,
+              userAuthority: publicKey!,
+              baseVault: reactor.baseVault,
+              neutronMint: reactor.neutronMint,
+              protonMint: reactor.protonMint,
+              userBaseAccount: baseAta.address,
+              userNeutronAccount: neutronAta.address,
+              userProtonAccount: protonAta.address,
+              treasuryBaseAccount: reactor.treasuryBaseAccount,
+              priceUpdate: getPriceUpdateAccount(reactor.priceFeedId),
+              tokenProgram: TOKEN_PROGRAM_ID
+            })
+            .instruction()
+
+          const wrap = (instruction: TransactionInstruction) => ({ instruction, signers: [] })
+          return [
+            ...baseAta.instructions.map(wrap),
+            ...neutronAta.instructions.map(wrap),
+            ...protonAta.instructions.map(wrap),
+            { instruction: fissionInstruction, signers: [] }
+          ]
+        }
+      )
+
+      const transactions = await transactionBuilder.buildVersionedTransactions({
+        computeUnitPriceMicroLamports: 50_000
+      })
+
+      toast.info(`Sending ${transactions.length} transaction(s)...`)
+      await pythSolanaReceiver.provider.sendAll(transactions, { skipPreflight: true })
+
+      toast.success("Fission transaction confirmed", {
+        description: currentPrice
+          ? `Price: $${(currentPrice.price * Math.pow(10, currentPrice.expo)).toFixed(4)}`
+          : undefined
+      })
+      setRefreshCounter((value) => value + 1)
+      await refreshBalances()
       setAmount("")
     } catch (error) {
       console.error("Fission failed", error)
@@ -1322,14 +1431,17 @@ export default function InteractionClient() {
     amount,
     balances?.base,
     ensureAta,
+    createPythWalletAdapter,
     program,
     publicKey,
     reactor,
     reactorAuthority,
     recipientMatchesWallet,
     requireWallet,
+    connection,
     route,
-    sendInstructions
+    refreshBalances,
+    setRefreshCounter
   ])
 
   const handleFusion = useCallback(async () => {
@@ -1473,24 +1585,7 @@ export default function InteractionClient() {
       // Use Pyth Solana Receiver SDK to build and send transaction
       const pythSolanaReceiver = new PythSolanaReceiver({
         connection,
-        wallet: {
-          publicKey: publicKey!,
-          signTransaction: async (tx) => {
-            // Use the wallet's actual signTransaction method
-            if (!window.solana) {
-              throw new Error("Wallet not found")
-            }
-            const signed = await window.solana.signTransaction(tx)
-            return signed as Transaction
-          },
-          signAllTransactions: async (txs) => {
-            if (!window.solana) {
-              throw new Error("Wallet not found")
-            }
-            const signed = await window.solana.signAllTransactions(txs)
-            return signed as Transaction[]
-          },
-        } as Wallet,
+        wallet: createPythWalletAdapter()
       })
 
       // Create transaction builder
@@ -1575,7 +1670,8 @@ export default function InteractionClient() {
     recipientMatchesWallet,
     requireWallet,
     route,
-    refreshBalances
+    refreshBalances,
+    createPythWalletAdapter
   ])
 
   const handleSwap = useCallback(async () => {
@@ -1607,14 +1703,19 @@ export default function InteractionClient() {
     return reactor.vaultName?.length ? `${reactor.vaultName}` : "Stablecoin Reactor"
   }, [reactor])
 
-  const infoRows = useMemo(() => {
+  const infoSections = useMemo((): InfoSection[] => {
     if (!reactor) {
       return []
     }
 
-    const basePriceText =
-      priceDisplay !== null ? `$${priceDisplay}` : isLoadingPrice ? "Loading…" : "—"
-    const priceUpdatedText = priceUpdatedDisplay ?? "—"
+    const basePriceWithTimestamp =
+      priceDisplay !== null
+        ? `${priceDisplay} ${peggedSymbolText}${
+            priceUpdatedDisplay ? ` (${priceUpdatedDisplay})` : ""
+          }`
+        : isLoadingPrice
+          ? "Loading…"
+          : "—"
 
     // Calculate current reserve ratio: r = R / (S◦ * P*_base)
     let currentReserveRatioText = "—"
@@ -1651,42 +1752,79 @@ export default function InteractionClient() {
       ? `${protonBasePriceDisplay} ${baseSymbolText}`
       : protonBasePriceDisplay
 
-    return [
-      { label: "Vault Address", value: reactor.address.toBase58(), monospace: true },
-      { label: "Treasury", value: reactor.treasuryAuthority.toBase58(), monospace: true },
-      { label: "Treasury Base Account", value: reactor.treasuryBaseAccount.toBase58(), monospace: true },
-      {
-        label: "Price Feed ID",
-        value: reactor.priceFeedId ?? "—",
-        monospace: true
-      },
-      { label: "Base Mint", value: reactor.baseMint.toBase58(), monospace: true },
-      { label: "Current Reserve Ratio (r)", value: currentReserveRatioText },
-      { label: "Critical Reserve Ratio (r*)", value: formatPercentFromWad(reactor.rStarWad) },
-      { label: "Fission Fee", value: formatPercentFromWad(reactor.fissionFeeWad) },
-      { label: "Fusion Fee", value: formatPercentFromWad(reactor.fusionFeeWad) },
-      {
-        label: "Reserve Balance",
-        value: `${formatTokenAmount(reactor.reserveTokens, reactor.baseDecimals)} ${baseSymbolText}`
-      },
-      {
-        label: `${neutronSymbolText} Supply`,
-        value: formatTokenAmount(reactor.neutronSupply, reactor.neutronDecimals)
-      },
-      {
-        label: `${protonSymbolText} Supply`,
-        value: formatTokenAmount(reactor.protonSupply, reactor.protonDecimals)
-      },
-      { label: "Pyth Price", value: basePriceText },
-      { label: `${neutronSymbolText}/Base`, value: neutronBaseValue },
-      { label: `${protonSymbolText}/Base`, value: protonBaseValue },
-      { label: `${neutronSymbolText}/Peg Price`, value: neutronPegPriceDisplay },
-      { label: `${protonSymbolText}/Peg Price`, value: protonPegPriceDisplay },
-      { label: "Price Updated", value: priceUpdatedText }
-    ]
+    const vaultSection: InfoSection = {
+      title: "Vault Posture",
+      description: "Core reserve state and fee policy for this reactor.",
+      items: [
+        {
+          label: "Reserve Balance",
+          value: `${formatTokenAmount(reactor.reserveTokens, reactor.baseDecimals)} ${baseSymbolText}`,
+          emphasize: true
+        },
+        { label: "Current Reserve Ratio", value: currentReserveRatioText, emphasize: true },
+        { label: "Critical Reserve Ratio", value: formatPercentFromWad(reactor.criticalReserveRatioWad) },
+        { label: "Fission Fee", value: formatPercentFromWad(reactor.fissionFeeWad) },
+        { label: "Fusion Fee", value: formatPercentFromWad(reactor.fusionFeeWad) },
+        { label: "Base Asset", value: `${baseAssetName} (${baseSymbolText})` },
+        { label: "Pegged Asset", value: `${peggedAssetName} (${peggedSymbolText})` },
+        {
+          label: "Price Feed ID",
+          value: reactor.priceFeedId ?? "—",
+          monospace: true
+        }
+      ]
+    }
+
+    const addressSection: InfoSection = {
+      title: "Program Addresses",
+      description: "Key accounts that hold authority over vault flows.",
+      items: [
+        { label: "Vault Address", value: reactor.address.toBase58(), monospace: true },
+        { label: "Base Mint", value: reactor.baseMint.toBase58(), monospace: true },
+        { label: "Treasury Authority", value: TREASURY_AUTHORITY.toBase58(), monospace: true },
+        { label: "Treasury Base Account", value: reactor.treasuryBaseAccount.toBase58(), monospace: true }
+      ]
+    }
+
+    const neutronSection: InfoSection = {
+      title: `${neutronSymbolText} Metrics`,
+      description: "Stable asset supply and relative value snapshots.",
+      items: [
+        {
+          label: `${neutronSymbolText} Supply`,
+          value: formatTokenAmount(reactor.neutronSupply, reactor.neutronDecimals),
+          emphasize: true
+        },
+        { label: "Pyth Price", value: basePriceWithTimestamp },
+        { label: `${neutronSymbolText}/${baseAssetName}`, value: neutronBaseValue },
+        { label: `${neutronSymbolText}/${peggedAssetName}`, value: neutronPegPriceDisplay }
+      ]
+    }
+
+    const protonSection: InfoSection = {
+      title: `${protonSymbolText} Metrics`,
+      description: "Yield asset issuance and pricing context.",
+      items: [
+        {
+          label: `${protonSymbolText} Supply`,
+          value: formatTokenAmount(reactor.protonSupply, reactor.protonDecimals),
+          emphasize: true
+        },
+        { label: "Pyth Price", value: basePriceWithTimestamp },
+        { label: `${protonSymbolText}/${baseAssetName}`, value: protonBaseValue },
+        { label: `${protonSymbolText}/${peggedAssetName}`, value: protonPegPriceDisplay }
+      ]
+    }
+
+    return [vaultSection, addressSection, neutronSection, protonSection].filter(
+      (section) => section.items.length > 0
+    )
   }, [
     reactor,
+    baseAssetName,
     baseSymbolText,
+    peggedAssetName,
+    peggedSymbolText,
     neutronSymbolText,
     protonSymbolText,
     priceDisplay,
@@ -1804,7 +1942,7 @@ export default function InteractionClient() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="BASE" disabled={disabledTokens.BASE}>
-                        {baseSymbolText}
+                        {`${baseAssetName} (${baseSymbolText})`}
                       </SelectItem>
                       <SelectItem value="NEUTRON" disabled={disabledTokens.NEUTRON}>
                         {neutronSymbolText}
@@ -1985,52 +2123,74 @@ export default function InteractionClient() {
                 Live configuration, oracle wiring, and treasury context for this vault.
               </p>
             </CardHeader>
-            <CardContent>
-              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {infoRows.map((row) => {
-                  const isAddressRow =
-                    row.monospace && typeof row.value === "string" && row.value.length > 10
-                  const renderedValue = isAddressRow && typeof row.value === "string"
-                    ? shortenAddress(row.value)
-                    : row.value
+            <CardContent className="space-y-6">
+              {infoSections.map((section) => (
+                <section
+                  key={section.title}
+                  className="rounded-xl border border-white/20 bg-white/5 px-5 py-6 backdrop-blur-sm"
+                >
+                  <div className="flex flex-col gap-1 border-b border-white/10 pb-4">
+                    <h3 className="text-sm font-semibold tracking-wide text-foreground">
+                      {section.title}
+                    </h3>
+                    {section.description ? (
+                      <p className="text-xs text-muted-foreground/80">
+                        {section.description}
+                      </p>
+                    ) : null}
+                  </div>
+                  <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                    {section.items.map((row) => {
+                      const isAddressRow = row.monospace && row.value.length > 12
+                      const renderedValue = isAddressRow ? shortenAddress(row.value) : row.value
+                      const emphasisClasses = row.emphasize
+                        ? "text-lg font-semibold tracking-tight"
+                        : "text-sm"
 
-                  return (
-                    <div key={row.label} className="space-y-1">
-                      <dt className="text-base font-medium text-muted-foreground">
-                        {row.label}
-                      </dt>
-                      <dd
-                        className={`text-base text-foreground ${
-                          isAddressRow ? "flex items-center gap-2" : ""
-                        }`}
-                      >
-                        {isAddressRow && typeof row.value === "string" ? (
-                          <>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => void handleCopy(row.value as string)}
-                            >
-                              <Copy className="h-4 w-4" />
-                              <span className="sr-only">Copy {row.label}</span>
-                            </Button>
-                            <div className="flex flex-col">
-                              <span className="font-mono">{renderedValue}</span>
-                              {copiedAddress === row.value ? (
-                                <span className="text-[10px] text-muted-foreground">Copied</span>
-                              ) : null}
-                            </div>
-                          </>
-                        ) : (
-                          renderedValue
-                        )}
-                      </dd>
-                    </div>
-                  )
-                })}
-              </dl>
+                      return (
+                        <div
+                          key={`${section.title}-${row.label}`}
+                          className="rounded-lg bg-white/[0.03] px-3 py-3"
+                        >
+                          <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                            {row.label}
+                          </dt>
+                          <dd
+                            className={`mt-1 text-foreground ${emphasisClasses} ${
+                              isAddressRow ? "flex items-center gap-2" : ""
+                            }`}
+                          >
+                            {isAddressRow ? (
+                              <>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 rounded-full border border-white/20 bg-white/5"
+                                  onClick={() => void handleCopy(row.value)}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  <span className="sr-only">Copy {row.label}</span>
+                                </Button>
+                                <div className="flex flex-col">
+                                  <span className="font-mono text-sm">{renderedValue}</span>
+                                  {copiedAddress === row.value ? (
+                                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                      Copied
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </>
+                            ) : (
+                              renderedValue
+                            )}
+                          </dd>
+                        </div>
+                      )
+                    })}
+                  </dl>
+                </section>
+              ))}
             </CardContent>
           </Card>
         </div>
