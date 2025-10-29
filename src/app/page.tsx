@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
+import Image from "next/image"
 import LightRays from "@/components/LightRays"
 import TargetCursor from "@/components/TargetCursor"
 import TokenFlow from "@/components/TokenFlow"
@@ -108,24 +109,24 @@ export default function HomePage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5, duration: 0.5 }}
                     >
-                      Get exposure to stability with Proton.
+                      Get exposure to stability with leveraged yield token.
                       <br />
-                      Proton is the stablecoin pegged to price of 1 backed token.
+                      leveraged yield token is the stablecoin pegged to price of 1 backed token.
                       <br /><br />
-                      Get leveraged volatility and yield with Neutron.
+                      Get leveraged volatility and yield with stable token.
                       <br />
-                      Neutron tokenizes the reserve surplus.
+                      stable token tokenizes the reserve surplus.
                       <br /><br />
-                      Both Proton and Neutron are fully backed by Base-Tokens tokens.
+                      Both leveraged yield token and stable token are fully backed by Base-Tokens tokens.
                     </motion.p>
                   </div>
                 </div>
                 <div className="grid lg:pl-6 grid-cols-1 items-start gap-6">
                   {[
-                    { icon: "⚡", title: "Fission", description: "Splits Base-Tokens tokens into Proton stable tokens and Neutron volatile tokens" },
-                    { icon: "✨", title: "Fusion", description: "Merges Proton stable tokens and Neutron volatile tokens into Base-Tokens tokens" },
-                    { icon: "β⁺", title: "Transmute β⁺", description: "Convert Proton into Neutron while dynamically adjusting fees based on reserve balance" },
-                    { icon: "β⁻", title: "Transmute β⁻", description: "Convert Neutron into Proton with adaptive pricing driven by system health" },
+                    { icon: "⚡", title: "Fission", description: "Splits Base-Tokens tokens into leveraged yield token stable tokens and stable token volatile tokens" },
+                    { icon: "✨", title: "Fusion", description: "Merges leveraged yield token stable tokens and stable token volatile tokens into Base-Tokens tokens" },
+                    { icon: "β⁺", title: "Transmute β⁺", description: "Convert leveraged yield token into stable token while dynamically adjusting fees based on reserve balance" },
+                    { icon: "β⁻", title: "Transmute β⁻", description: "Convert stable token into leveraged yield token with adaptive pricing driven by system health" },
                   ].map((item, index) => (
                     <motion.div
                       key={item.title}
@@ -152,29 +153,29 @@ export default function HomePage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
               >
-                {/* Fission: Base-Tokens -> Proton + Neutron */} 
+                {/* Fission: Base-Tokens -> leveraged yield token + stable token */} 
                 <TokenFlow
                   fromTokens={['Base Token']}
-                  toTokens={['Proton', 'Neutron']}
+                  toTokens={['leveraged yield token', 'stable token']}
                 />
 
-                {/* Fusion: Proton + Neutron -> Base-Tokens */}
+                {/* Fusion: leveraged yield token + stable token -> Base-Tokens */}
                 <TokenFlow
-                  fromTokens={['Proton', 'Neutron']}
+                  fromTokens={['leveraged yield token', 'stable token']}
                   toTokens={['Base Token']}
                   reverse={false}
                 />
 
-                {/* Transmute β⁺: Proton -> Neutron */}
+                {/* Transmute β⁺: leveraged yield token -> stable token */}
                 <TokenFlow
-                  fromTokens={['Proton']}
-                  toTokens={['Neutron']}
+                  fromTokens={['leveraged yield token']}
+                  toTokens={['stable token']}
                 />
 
-                {/* Transmute β⁻: Neutron -> Proton */}
+                {/* Transmute β⁻: stable token -> leveraged yield token */}
                 <TokenFlow
-                  fromTokens={['Neutron']}
-                  toTokens={['Proton']}
+                  fromTokens={['stable token']}
+                  toTokens={['leveraged yield token']}
                 />
               </motion.div>
             </Card>
@@ -195,13 +196,83 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Research Section */}
+      <section className="relative z-[5]">
+        <div className="container mx-auto px-4 py-16 lg:py-24 relative">
+          <div className="grid gap-10 lg:grid-cols-2 items-start">
+            <motion.div
+              className="space-y-6"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.5 }}
+            >
+              <span className="inline-block bg-white/10 px-4 py-2 rounded-none text-sm font-medium backdrop-blur-sm border border-white/40">
+                Research Driven
+              </span>
+              <h3 className="text-3xl lg:text-4xl tracking-tight font-semibold text-foreground">
+                Gluon&apos;s architecture is grounded in peer-reviewed cryptography.
+              </h3>
+              <p className="text-lg leading-relaxed text-muted-foreground">
+                The Gluon dual-token system combines the stability guarantees of the stable token with the
+                reflexive upside captured by the leveraged yield token. Our settlement, oracle, and reserve
+                controls follow the Stability Nexus Gluon research note published on IACR ePrint 2025/1372.
+              </p>
+              <ul className="space-y-3 text-sm lg:text-base text-muted-foreground">
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 text-primary">•</span>
+                  <span>Proof-based solvency flows that map to Solana compute budgets and parallel execution.</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="mt-1 text-primary">•</span>
+                  <span>Adaptive reserve thresholds that inform swap fees and transmutation routes for resilient liquidity.</span>
+                </li>
+              </ul>
+              <div>
+                <Link
+                  href="https://eprint.iacr.org/2025/1372"
+                  target="_blank"
+                  className="text-primary underline-offset-4 hover:underline font-medium"
+                >
+                  Read the Gluon research note →
+                </Link>
+              </div>
+            </motion.div>
+            <motion.div
+              className="w-full lg:w-3/4 lg:ml-auto"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
+            >
+              <Card className="p-4 bg-background/50 backdrop-blur-sm border-primary/20 hover:border-primary/40 transition-colors">
+                <Link href="https://eprint.iacr.org/2025/1372" target="_blank" className="block group">
+                  <div className="relative aspect-square overflow-hidden rounded-lg">
+                    <Image
+                      unoptimized
+                      fetchPriority="high"
+                      loading="lazy"
+                      src="/GluonPaper.png"
+                      alt="Gluon Solana Research Paper"
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </Link>
+              </Card>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section */} 
       <section className="relative min-h-screen flex items-center z-[5]"> 
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl lg:text-5xl font-bold mb-6 text-balance">Why Choose Our Platform</h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto text-pretty">
-              Revolutionary dual-token mechanics on Bitcoin infrastructure. Build the future of stable assets with cutting-edge technology.
+              Solana-native dual-token mechanics with lightning-fast settlement and composable DeFi integrations for the next generation of stable assets.
             </p>
           </div>
 
@@ -215,7 +286,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  Revolutionary fission/fusion mechanics split assets into Proton (stable) and Neutron (volatile) tokens. Get exposure to both stability and leveraged volatility from a single underlying asset.
+                  Programmable fission and fusion mint stable token for price stability and leveraged yield token for reserve upside—executed entirely on Solana for instantaneous settlement.
                 </p>
               </CardContent>
             </Card>
@@ -225,11 +296,11 @@ export default function HomePage() {
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
-                    Bitcoin Infrastructure
+                    Solana Performance
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  Built on Bitcoin-compatible networks like Citrea and Rootstock. Leverage Bitcoin&apos;s security and stability while accessing modern DeFi capabilities and smart contract functionality.
+                  Take advantage of Solana&apos;s parallel runtime for sub-second confirmation times, ultra-low fees, and seamless access to the wider Solana DeFi liquidity landscape.
                 </p>
               </CardContent>
             </Card>
@@ -243,7 +314,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  Powered by different Oracles real-time price feeds for accurate and reliable asset pricing. Get sub-second price updates across multiple asset classes including fiat, crypto, and commodities.
+                  Powered by Solana-native oracle networks like Pyth for accurate, low-latency pricing across fiat, crypto, and commodities—keeping vault health responsive.
                 </p>
               </CardContent>
             </Card>
@@ -271,7 +342,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  Advanced system health monitoring and automated risk management protocols. Choose from conservative, moderate, or aggressive risk profiles to match your investment strategy.
+                  On-chain risk monitors and automated guardrails recalibrate exposure in real time, leveraging Solana&apos;s high-frequency data and compute budget flexibility.
                 </p>
               </CardContent>
             </Card>
@@ -281,11 +352,11 @@ export default function HomePage() {
               <CardContent className="p-0">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="bg-white text-black px-4 py-2 rounded-none font-bold text-sm">
-                    Multi-Chain Support
+                    Solana Network Coverage
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  Deploy across Citrea Testnet, Rootstock Testnet, and Scroll Sepolia networks. Seamless cross-chain functionality with unified user experience across Bitcoin-compatible ecosystems.
+                  Deploy on Solana mainnet-beta, testnet, or devnet with identical tooling. Ship upgrades quickly while teams iterate with the Anchor framework and Solana CLI.
                 </p>
               </CardContent>
             </Card>
