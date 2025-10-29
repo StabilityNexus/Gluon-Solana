@@ -1799,7 +1799,7 @@ export default function InteractionClient() {
                     value={fromToken}
                     onValueChange={(value) => setFromToken(value as TokenOption)}
                   >
-                    <SelectTrigger className="h-12 sm:h-14 w-full sm:w-40 bg-background/80">
+                    <SelectTrigger className="h-12 sm:h-14 w-full sm:w-48 sm:flex-none bg-background/80">
                       <SelectValue placeholder="Token" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1829,7 +1829,7 @@ export default function InteractionClient() {
                       setAmount(event.target.value)
                     }}
                     readOnly={fromInputReadOnly}
-                    className="w-full sm:flex-1 text-xl sm:text-2xl font-semibold h-12 sm:h-14 bg-background/60"
+                    className="w-full sm:flex-1 sm:min-w-0 text-xl sm:text-2xl font-semibold h-12 sm:h-14 bg-background/60"
                   />
 
                   {renderMaxButton && (
@@ -1896,7 +1896,7 @@ export default function InteractionClient() {
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:h-14">
                   <Select value={toToken} onValueChange={(value) => setToToken(value as TokenOption)}>
-                    <SelectTrigger className="h-12 sm:h-14 w-full sm:w-40 bg-background/80">
+                    <SelectTrigger className="h-12 sm:h-14 sm:w-52 sm:flex-none bg-background/80">
                       <SelectValue placeholder="Token" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1924,7 +1924,7 @@ export default function InteractionClient() {
                       }
                     }}
                     readOnly={toInputReadOnly}
-                    className="w-full sm:flex-1 text-xl sm:text-2xl font-semibold h-12 sm:h-14 bg-background/60"
+                    className="w-full sm:flex-1 sm:min-w-0 text-xl sm:text-2xl font-semibold h-12 sm:h-14 bg-background/60"
                   />
                 </div>
               </div>

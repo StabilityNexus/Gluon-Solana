@@ -324,7 +324,7 @@ function ReactorCard({ reactor }: ReactorCardProps) {
           label="Proton Supply"
           value={formatTokenAmount(reactor.protonSupply, reactor.protonDecimals)}
         />
-        <StatRow label="Target Ratio" value={`${wadToDecimalString(reactor.targetReserveRatio)}×`} />
+        <StatRow label="Critical Reserve Ratio" value={`${wadToDecimalString(reactor.targetReserveRatio)}×`} />
         <StatRow
           label="Fees (Fission/Fusion)"
           value={`${wadToPercentString(reactor.fissionFee)} / ${wadToPercentString(reactor.fusionFee)}`}
