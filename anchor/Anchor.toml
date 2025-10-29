@@ -9,7 +9,7 @@ skip-lint = false
 Stablecoin = "2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1"
 
 [programs.devnet]
-Stablecoin = "2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1"
+Stablecoin = "EsJy3RdEnRt8gsGQC5E6Ksz15vdV5zMevhcpwPapZJoW"
 
 [registry]
 url = "https://api.apr.dev"
