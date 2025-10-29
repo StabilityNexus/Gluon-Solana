@@ -15,7 +15,7 @@ mod uint_types {
 }
 use uint_types::U256;
 
-declare_id!("2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1");
+declare_id!("BaLj5dEV9zfzXbdUDDDfNsZHzYvgE7KeByTAkekwTows");
 
 const TREASURY_AUTHORITY: Pubkey = pubkey!("AbXCVvK1BqVRcNBu9JpJuRnngwkLy6DXG66Anxi2ncBn");
 

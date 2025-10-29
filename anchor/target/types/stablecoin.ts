@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/stablecoin.json`.
  */
 export type Stablecoin = {
-  "address": "2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1",
+  "address": "BaLj5dEV9zfzXbdUDDDfNsZHzYvgE7KeByTAkekwTows",
   "metadata": {
     "name": "stablecoin",
     "version": "0.1.0",
