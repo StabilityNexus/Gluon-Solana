@@ -32,7 +32,7 @@ if (typeof global !== 'undefined') {
 
 // ===== DEVNET CONFIGURATION =====
 const DEVNET_RPC = 'https://api.devnet.solana.com'
-const PROGRAM_ID = new PublicKey('AXtZmZ41Eq7NusPoEbFw2k4haaXHQxBrCrcg4y1oW7Eh')
+const PROGRAM_ID = new PublicKey('2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1')
 
 // Pyth Price Feed ID (hex string) for SOL/USD
 const SOL_USD_PRICE_FEED_ID = '0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'
@@ -45,6 +45,29 @@ const HERMES_API_URL = 'https://hermes.pyth.network'
 
 const WAD = new BN('1000000000000000000')
 const TWO_WAD = WAD.muln(2)
+const JS_WAD = 1000000000000000000n
+
+function pow10Big(exp: number): bigint {
+  if (exp < 0) {
+    throw new Error('pow10Big expects non-negative exponent')
+  }
+  let result = 1n
+  for (let i = 0; i < exp; i += 1) {
+    result *= 10n
+  }
+  return result
+}
+
+function convertPythPriceToWadJS(price: bigint, exponent: number): bigint {
+  if (price <= 0n) {
+    throw new Error('Price must be positive')
+  }
+  if (exponent >= 0) {
+    return price * pow10Big(exponent) * JS_WAD
+  }
+  const scale = pow10Big(-exponent)
+  return (price * JS_WAD) / scale
+}
 
 /**
  * Gluon Z Critical Reserve Ratio (r*)
@@ -61,6 +84,11 @@ const TWO_WAD = WAD.muln(2)
  */
 const R_STAR_WAD = WAD.clone().add(WAD.clone().divn(100)) // 1.01 = 101%
 const AUTHORITY_SEED = Buffer.from('reactor-authority')
+const TREASURY_AUTHORITY = new PublicKey('AbXCVvK1BqVRcNBu9JpJuRnngwkLy6DXG66Anxi2ncBn')
+const BASE_ASSET_NAME = 'USD Coin'
+const BASE_ASSET_SYMBOL = 'USDC'
+const PEGGED_ASSET_NAME = 'Gluon Dollar'
+const PEGGED_ASSET_SYMBOL = 'GLD'
 
 // Test amounts (in base tokens with 6 decimals)
 const INITIAL_USER_BASE = 10_000_000 // 10 tokens
@@ -160,6 +188,8 @@ beforeAll(async () => {
 async function fetchPriceUpdateData(feedId: string): Promise<{
   priceUpdateData: string[]
   displayPrice: number
+  price: bigint
+  expo: number
 }> {
   try {
     const hermesClient = new HermesClient(HERMES_API_URL)
@@ -186,6 +216,8 @@ async function fetchPriceUpdateData(feedId: string): Promise<{
     return {
       priceUpdateData: priceUpdateResponse.binary.data,
       displayPrice,
+      price: BigInt(priceInfo.price),
+      expo: priceInfo.expo,
     }
   } catch (error) {
     console.error('❌ Failed to fetch price update from Hermes:', error)
@@ -278,7 +310,6 @@ type ReactorSetup = {
   neutronMint: PublicKey
   protonMint: PublicKey
   baseVault: PublicKey
-  treasuryAuthority: Keypair
   treasuryBaseAccount: PublicKey
   userBaseAccount: PublicKey
   userNeutronAccount: PublicKey
@@ -293,15 +324,14 @@ async function setupReactorOnDevnet(): Promise<ReactorSetup> {
     [AUTHORITY_SEED, reactor.publicKey.toBuffer()],
     PROGRAM_ID
   )
-  
-  const treasuryAuthority = Keypair.generate()
-  
+
   console.log('  Creating base mint (USDC-like, 6 decimals)...')
   const baseMint = await createMintOnDevnet(6)
   
   console.log('  Creating token accounts...')
   const baseVault = await createTokenAccount(baseMint, reactorAuthority, true)
-  const treasuryBaseAccount = await createTokenAccount(baseMint, treasuryAuthority.publicKey)
+  const treasuryBaseAccount = await createTokenAccount(baseMint, TREASURY_AUTHORITY)
+  console.log('  Using fixed treasury authority:', TREASURY_AUTHORITY.toBase58())
   const userBaseAccount = await createTokenAccount(baseMint, payer.publicKey)
 
   console.log('  Seeding base reserve for proportional fission...')
@@ -317,8 +347,8 @@ async function setupReactorOnDevnet(): Promise<ReactorSetup> {
   const protonMint = await createMintOnDevnet(6)
 
   console.log('  Seeding initial neutron/proton circulation on treasury...')
-  const treasuryNeutronAccount = await createTokenAccount(neutronMint, treasuryAuthority.publicKey)
-  const treasuryProtonAccount = await createTokenAccount(protonMint, treasuryAuthority.publicKey)
+  const treasuryNeutronAccount = await createTokenAccount(neutronMint, TREASURY_AUTHORITY)
+  const treasuryProtonAccount = await createTokenAccount(protonMint, TREASURY_AUTHORITY)
   await mintTokens(neutronMint, treasuryNeutronAccount, INITIAL_NEUTRON_SUPPLY)
   await mintTokens(protonMint, treasuryProtonAccount, INITIAL_PROTON_SUPPLY)
   
@@ -349,9 +379,13 @@ async function setupReactorOnDevnet(): Promise<ReactorSetup> {
   const tx = await program.methods
     .initialize({
       vaultName: 'Test Reactor Devnet',
+      baseAssetName: BASE_ASSET_NAME,
+      baseAssetSymbol: BASE_ASSET_SYMBOL,
+      peggedAssetName: PEGGED_ASSET_NAME,
+      peggedAssetSymbol: PEGGED_ASSET_SYMBOL,
       fissionFeeWad: new BN(0),
       fusionFeeWad: new BN(0),
-      targetReserveRatioWad: TWO_WAD,
+      criticalReserveRatioWad: TWO_WAD,
       rStarWad: R_STAR_WAD,
       priceFeedId: SOL_USD_PRICE_FEED_ID
     })
@@ -363,7 +397,6 @@ async function setupReactorOnDevnet(): Promise<ReactorSetup> {
       baseVault,
       neutronMint,
       protonMint,
-      treasuryAuthority: treasuryAuthority.publicKey,
       treasuryBaseAccount,
       systemProgram: SystemProgram.programId,
       tokenProgram: TOKEN_PROGRAM_ID
@@ -381,7 +414,6 @@ async function setupReactorOnDevnet(): Promise<ReactorSetup> {
     neutronMint,
     protonMint,
     baseVault,
-    treasuryAuthority,
     treasuryBaseAccount,
     userBaseAccount,
     userNeutronAccount,
@@ -407,15 +439,14 @@ describe('Stablecoin Program - Devnet Tests', () => {
       [AUTHORITY_SEED, reactor.publicKey.toBuffer()],
       PROGRAM_ID
     )
-    
-    const treasuryAuthority = Keypair.generate()
-    
+
     // Create a new base token (like USDC) with 6 decimals
     console.log('  📝 Creating base token mint (6 decimals)...')
     const baseMint = await createMintOnDevnet(6)
     
     const baseVault = await createTokenAccount(baseMint, reactorAuthority, true)
-    const treasuryBaseAccount = await createTokenAccount(baseMint, treasuryAuthority.publicKey)
+    const treasuryBaseAccount = await createTokenAccount(baseMint, TREASURY_AUTHORITY)
+    console.log('  Using fixed treasury authority:', TREASURY_AUTHORITY.toBase58())
     
     // Create user's base token account and mint initial supply
     console.log('  💰 Minting initial tokens to test wallet...')
@@ -441,9 +472,13 @@ describe('Stablecoin Program - Devnet Tests', () => {
     const tx = await program.methods
       .initialize({
         vaultName: 'Frontend Reactor',
+        baseAssetName: BASE_ASSET_NAME,
+        baseAssetSymbol: BASE_ASSET_SYMBOL,
+        peggedAssetName: PEGGED_ASSET_NAME,
+        peggedAssetSymbol: PEGGED_ASSET_SYMBOL,
         fissionFeeWad: new BN(0),
         fusionFeeWad: new BN(0),
-        targetReserveRatioWad: TWO_WAD,
+        criticalReserveRatioWad: TWO_WAD,
         rStarWad: R_STAR_WAD,
         priceFeedId: SOL_USD_PRICE_FEED_ID
       })
@@ -455,7 +490,6 @@ describe('Stablecoin Program - Devnet Tests', () => {
         baseVault,
         neutronMint,
         protonMint,
-        treasuryAuthority: treasuryAuthority.publicKey,
         treasuryBaseAccount,
         systemProgram: SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID
@@ -503,6 +537,11 @@ describe('Stablecoin Program - Devnet Tests', () => {
     expect(reactorAccount.baseVault.toBase58()).toBe(sharedReactor.baseVault.toBase58())
     expect(reactorAccount.neutronMint.toBase58()).toBe(sharedReactor.neutronMint.toBase58())
     expect(reactorAccount.protonMint.toBase58()).toBe(sharedReactor.protonMint.toBase58())
+    expect(reactorAccount.treasuryBaseAccount.toBase58()).toBe(sharedReactor.treasuryBaseAccount.toBase58())
+    expect(reactorAccount.baseAssetName).toBe(BASE_ASSET_NAME)
+    expect(reactorAccount.baseAssetSymbol).toBe(BASE_ASSET_SYMBOL)
+    expect(reactorAccount.peggedAssetName).toBe(PEGGED_ASSET_NAME)
+    expect(reactorAccount.peggedAssetSymbol).toBe(PEGGED_ASSET_SYMBOL)
     expect(reactorAccount.priceFeedId).toBe(SOL_USD_PRICE_FEED_ID)
     expect(reactorAccount.rStarWad.toString()).toBe(R_STAR_WAD.toString())
     
@@ -526,30 +565,53 @@ describe('Stablecoin Program - Devnet Tests', () => {
     console.log('\n💥 Performing fission...')
     
     const baseVaultBefore = await getAccount(connection, ctx.baseVault)
+    const baseMintInfo = await getMint(connection, ctx.baseMint)
     const userBaseBefore = await getAccount(connection, ctx.userBaseAccount)
     const userNeutronBefore = await getAccount(connection, ctx.userNeutronAccount)
     const userProtonBefore = await getAccount(connection, ctx.userProtonAccount)
     const neutronMintBefore = await getMint(connection, ctx.neutronMint)
     const protonMintBefore = await getMint(connection, ctx.protonMint)
     
-    const tx = await program.methods
-      .fission(new BN(FISSION_DEPOSIT))
-      .accountsStrict({
-        reactor: ctx.reactor.publicKey,
-        reactorAuthority: ctx.reactorAuthority,
-        userAuthority: payer.publicKey,
-        baseVault: ctx.baseVault,
-        neutronMint: ctx.neutronMint,
-        protonMint: ctx.protonMint,
-        userBaseAccount: ctx.userBaseAccount,
-        userNeutronAccount: ctx.userNeutronAccount,
-        userProtonAccount: ctx.userProtonAccount,
-        treasuryBaseAccount: ctx.treasuryBaseAccount,
-        tokenProgram: TOKEN_PROGRAM_ID
-      })
-      .rpc()
-    
-    await confirmTransaction(tx)
+  const { priceUpdateData: fissionPriceUpdateData, price: fissionPrice, expo: fissionExpo } = await fetchPriceUpdateData(SOL_USD_PRICE_FEED_ID)
+
+  const pythFissionReceiver = new PythSolanaReceiver({
+    connection,
+    wallet: new Wallet(payer),
+  })
+
+  const fissionTxBuilder = pythFissionReceiver.newTransactionBuilder({ closeUpdateAccounts: true })
+
+  await fissionTxBuilder.addPostPriceUpdates(fissionPriceUpdateData)
+
+  await fissionTxBuilder.addPriceConsumerInstructions(
+    async (getPriceUpdateAccount: (priceFeedId: string) => PublicKey): Promise<InstructionWithEphemeralSigners[]> => {
+      const instruction = await program.methods
+        .fission(new BN(FISSION_DEPOSIT))
+        .accountsStrict({
+          reactor: ctx.reactor.publicKey,
+          reactorAuthority: ctx.reactorAuthority,
+          userAuthority: payer.publicKey,
+          baseVault: ctx.baseVault,
+          neutronMint: ctx.neutronMint,
+          protonMint: ctx.protonMint,
+          userBaseAccount: ctx.userBaseAccount,
+          userNeutronAccount: ctx.userNeutronAccount,
+          userProtonAccount: ctx.userProtonAccount,
+          treasuryBaseAccount: ctx.treasuryBaseAccount,
+          priceUpdate: getPriceUpdateAccount(SOL_USD_PRICE_FEED_ID),
+          tokenProgram: TOKEN_PROGRAM_ID
+        })
+        .instruction()
+
+      return [{ instruction, signers: [] }]
+    }
+  )
+
+  const fissionTransactions = await fissionTxBuilder.buildVersionedTransactions({
+    computeUnitPriceMicroLamports: 50_000,
+  })
+
+  await pythFissionReceiver.provider.sendAll(fissionTransactions, { skipPreflight: false })
     
     const baseVaultAfter = await getAccount(connection, ctx.baseVault)
     const userBaseAfter = await getAccount(connection, ctx.userBaseAccount)
@@ -568,8 +630,31 @@ describe('Stablecoin Program - Devnet Tests', () => {
     
     const neutronSupplyBefore = neutronMintBefore.supply
     const protonSupplyBefore = protonMintBefore.supply
-    const expectedNeutronOut = reserveBefore === 0n ? 0n : (netBase * neutronSupplyBefore) / reserveBefore
-    const expectedProtonOut = reserveBefore === 0n ? 0n : (netBase * protonSupplyBefore) / reserveBefore
+
+    const baseFactor = pow10Big(baseMintInfo.decimals)
+    const neutronFactor = pow10Big(neutronMintBefore.decimals)
+    const protonFactor = pow10Big(protonMintBefore.decimals)
+
+    const isBootstrap =
+      reserveBefore === 0n && neutronSupplyBefore === 0n && protonSupplyBefore === 0n
+
+    let expectedNeutronOut: bigint
+    let expectedProtonOut: bigint
+
+    if (isBootstrap) {
+      const basePriceWad = convertPythPriceToWadJS(fissionPrice, fissionExpo)
+      const netWad = (netBase * JS_WAD) / baseFactor
+      const depositValueWad = (netWad * basePriceWad) / JS_WAD
+      const neutronValueWad = depositValueWad / 3n
+      const baseForNeutronWad = (neutronValueWad * JS_WAD) / basePriceWad
+      const protonBaseWad = netWad - baseForNeutronWad
+
+      expectedNeutronOut = (neutronValueWad * neutronFactor) / JS_WAD
+      expectedProtonOut = (protonBaseWad * protonFactor) / JS_WAD
+    } else {
+      expectedNeutronOut = reserveBefore === 0n ? 0n : (netBase * neutronSupplyBefore) / reserveBefore
+      expectedProtonOut = reserveBefore === 0n ? 0n : (netBase * protonSupplyBefore) / reserveBefore
+    }
     
     const neutronMinted = userNeutronAfter.amount - userNeutronBefore.amount
     const protonMinted = userProtonAfter.amount - userProtonBefore.amount
@@ -596,24 +681,47 @@ describe('Stablecoin Program - Devnet Tests', () => {
     
     // 1. Fission (price-free, no price update needed)
     console.log('  1️⃣ Fission...')
-    await program.methods
-      .fission(new BN(FISSION_DEPOSIT))
-      .accountsStrict({
-        reactor: ctx.reactor.publicKey,
-        reactorAuthority: ctx.reactorAuthority,
-        userAuthority: payer.publicKey,
-        baseVault: ctx.baseVault,
-        neutronMint: ctx.neutronMint,
-        protonMint: ctx.protonMint,
-        userBaseAccount: ctx.userBaseAccount,
-        userNeutronAccount: ctx.userNeutronAccount,
-        userProtonAccount: ctx.userProtonAccount,
-        treasuryBaseAccount: ctx.treasuryBaseAccount,
-        tokenProgram: TOKEN_PROGRAM_ID
-      })
-      .rpc()
-      .then(confirmTransaction)
-    
+    const { priceUpdateData: lifecycleFissionPriceUpdate } = await fetchPriceUpdateData(SOL_USD_PRICE_FEED_ID)
+
+    const lifecycleFissionReceiver = new PythSolanaReceiver({
+      connection,
+      wallet: new Wallet(payer),
+    })
+
+    const lifecycleFissionBuilder = lifecycleFissionReceiver.newTransactionBuilder({ closeUpdateAccounts: true })
+
+    await lifecycleFissionBuilder.addPostPriceUpdates(lifecycleFissionPriceUpdate)
+
+    await lifecycleFissionBuilder.addPriceConsumerInstructions(
+      async (getPriceUpdateAccount: (priceFeedId: string) => PublicKey): Promise<InstructionWithEphemeralSigners[]> => {
+        const instruction = await program.methods
+          .fission(new BN(FISSION_DEPOSIT))
+          .accountsStrict({
+            reactor: ctx.reactor.publicKey,
+            reactorAuthority: ctx.reactorAuthority,
+            userAuthority: payer.publicKey,
+            baseVault: ctx.baseVault,
+            neutronMint: ctx.neutronMint,
+            protonMint: ctx.protonMint,
+            userBaseAccount: ctx.userBaseAccount,
+            userNeutronAccount: ctx.userNeutronAccount,
+            userProtonAccount: ctx.userProtonAccount,
+            treasuryBaseAccount: ctx.treasuryBaseAccount,
+            priceUpdate: getPriceUpdateAccount(SOL_USD_PRICE_FEED_ID),
+            tokenProgram: TOKEN_PROGRAM_ID
+          })
+          .instruction()
+
+        return [{ instruction, signers: [] }]
+      }
+    )
+
+    const lifecycleFissionTxs = await lifecycleFissionBuilder.buildVersionedTransactions({
+      computeUnitPriceMicroLamports: 50_000,
+    })
+
+    await lifecycleFissionReceiver.provider.sendAll(lifecycleFissionTxs, { skipPreflight: false })
+
     const protonBefore = await getAccount(connection, ctx.userProtonAccount)
     const neutronBefore = await getAccount(connection, ctx.userNeutronAccount)
     
