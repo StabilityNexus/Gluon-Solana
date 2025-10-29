@@ -109,22 +109,22 @@ export default function HomePage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.5, duration: 0.5 }}
                     >
-                      Get exposure to stability with Proton.
+                      Get exposure to stability with Stable Token.
                       <br />
-                      Proton is the stablecoin pegged to price of 1 backed token.
+                      Neutron is the stablecoin pegged to price of 1 backed token.
                       <br /><br />
-                      Get leveraged volatility and yield with Neutron.
+                      Get leveraged volatility and yield with leverage yield token.
                       <br />
-                      Neutron tokenizes the reserve surplus.
+                      Proton tokenizes the reserve surplus.
                       <br /><br />
-                      Both Proton and Neutron are fully backed by Base-Tokens tokens.
+                      Both Proton and Neutron are fully backed by Base tokens.
                     </motion.p>
                   </div>
                 </div>
                 <div className="grid lg:pl-6 grid-cols-1 items-start gap-6">
                   {[
-                    { icon: "⚡", title: "Fission", description: "Splits Base-Tokens tokens into Proton and Neutron" },
-                    { icon: "✨", title: "Fusion", description: "Merges Proton and Neutron back into Base-Tokens" },
+                    { icon: "⚡", title: "Fission", description: "Splits Base tokens into Proton and Neutron" },
+                    { icon: "✨", title: "Fusion", description: "Merges Proton and Neutron back into Base tokens" },
                     { icon: "β⁺", title: "Transmute β⁺", description: "Convert Proton into Neutron while dynamically adjusting fees based on reserve balance" },
                     { icon: "β⁻", title: "Transmute β⁻", description: "Convert Neutron into Proton with adaptive pricing driven by system health" },
                   ].map((item, index) => (
