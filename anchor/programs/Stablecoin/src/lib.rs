@@ -15,7 +15,9 @@ mod uint_types {
 }
 use uint_types::U256;
 
-declare_id!("AXtZmZ41Eq7NusPoEbFw2k4haaXHQxBrCrcg4y1oW7Eh");
+declare_id!("2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1");
+
+const TREASURY_AUTHORITY: Pubkey = pubkey!("AbXCVvK1BqVRcNBu9JpJuRnngwkLy6DXG66Anxi2ncBn");
 
 const WAD: u128 = 1_000_000_000_000_000_000;
 const MAXIMUM_AGE: u64 = 60; // max staleness in seconds for oracle data
@@ -28,20 +30,43 @@ pub mod stablecoin {
         let clock = Clock::get()?;
         let reactor = &mut ctx.accounts.reactor;
 
-        require!(!params.vault_name.trim().is_empty() && params.vault_name.len() <= Reactor::MAX_VAULT_NAME, ErrorCode::InvalidVaultName);
+        require!(
+            !params.vault_name.trim().is_empty()
+                && params.vault_name.len() <= Reactor::MAX_VAULT_NAME,
+            ErrorCode::InvalidVaultName
+        );
+        require!(
+            !params.base_asset_name.trim().is_empty()
+                && params.base_asset_name.len() <= Reactor::MAX_ASSET_NAME,
+            ErrorCode::InvalidAssetMetadata
+        );
+        require!(
+            !params.base_asset_symbol.trim().is_empty()
+                && params.base_asset_symbol.len() <= Reactor::MAX_ASSET_SYMBOL,
+            ErrorCode::InvalidAssetMetadata
+        );
+        require!(
+            !params.pegged_asset_name.trim().is_empty()
+                && params.pegged_asset_name.len() <= Reactor::MAX_ASSET_NAME,
+            ErrorCode::InvalidAssetMetadata
+        );
+        require!(
+            !params.pegged_asset_symbol.trim().is_empty()
+                && params.pegged_asset_symbol.len() <= Reactor::MAX_ASSET_SYMBOL,
+            ErrorCode::InvalidAssetMetadata
+        );
         require!( !params.price_feed_id.trim().is_empty() && params.price_feed_id.len() <= Reactor::MAX_PRICE_FEED_ID, ErrorCode::InvalidPriceFeedId);
         require!(params.fission_fee_wad < WAD, ErrorCode::InvalidFee);
         require!(params.fusion_fee_wad < WAD, ErrorCode::InvalidFee);
         require!(params.r_star_wad > WAD, ErrorCode::InvalidTargetReserveRatio);
         require!(params.critical_reserve_ratio_wad >= WAD, ErrorCode::InvalidTargetReserveRatio);
-        require!(ctx.accounts.treasury_authority.key() != Pubkey::default(), ErrorCode::InvalidTreasuryAuthority);
 
-        let baseDecimals = ctx.accounts.base_mint.decimals;
-        let neutronDecimals = ctx.accounts.neutron_mint.decimals;
-        let protonDecimals = ctx.accounts.proton_mint.decimals;
-        reactor.validate_decimals(baseDecimals)?;
-        reactor.validate_decimals(neutronDecimals)?;
-        reactor.validate_decimals(protonDecimals)?;
+        let base_decimals = ctx.accounts.base_mint.decimals;
+        let neutron_decimals = ctx.accounts.neutron_mint.decimals;
+        let proton_decimals = ctx.accounts.proton_mint.decimals;
+        reactor.validate_decimals(base_decimals)?;
+        reactor.validate_decimals(neutron_decimals)?;
+        reactor.validate_decimals(proton_decimals)?;
 
         require!(
             ctx.accounts.neutron_mint.mint_authority
@@ -79,7 +104,7 @@ pub mod stablecoin {
             ErrorCode::MintMismatch
         );
         require!(
-            ctx.accounts.treasury_base_account.owner == ctx.accounts.treasury_authority.key(),
+            ctx.accounts.treasury_base_account.owner == TREASURY_AUTHORITY,
             ErrorCode::InvalidTreasuryAccount
         );
 
@@ -87,12 +112,15 @@ pub mod stablecoin {
 
         reactor.authority_bump = authority_bump;
         reactor.vault_name = params.vault_name;
+        reactor.base_asset_name = params.base_asset_name;
+        reactor.base_asset_symbol = params.base_asset_symbol;
+        reactor.pegged_asset_name = params.pegged_asset_name;
+        reactor.pegged_asset_symbol = params.pegged_asset_symbol;
         reactor.base_mint = ctx.accounts.base_mint.key();
         reactor.base_vault = ctx.accounts.base_vault.key();
         reactor.neutron_mint = ctx.accounts.neutron_mint.key();
         reactor.proton_mint = ctx.accounts.proton_mint.key();
         reactor.price_feed_id = params.price_feed_id;
-        reactor.treasury_authority = ctx.accounts.treasury_authority.key();
         reactor.treasury_base_account = ctx.accounts.treasury_base_account.key();
 
         reactor.fission_fee_wad = params.fission_fee_wad;
@@ -115,6 +143,12 @@ pub mod stablecoin {
 
     pub fn set_beta_params(ctx: Context<SetBetaParams>, params: BetaParams) -> Result<()> {
         let reactor = &mut ctx.accounts.reactor;
+
+        require_keys_eq!(
+            ctx.accounts.treasury_authority.key(),
+            TREASURY_AUTHORITY,
+            ErrorCode::InvalidTreasuryAuthority
+        );
 
         require!(
             params.phi0_wad <= WAD && params.phi1_wad <= WAD,
@@ -141,6 +175,7 @@ pub mod stablecoin {
 
     pub fn fission(ctx: Context<Fission>, amount_in: u64) -> Result<()> {
         require!(amount_in > 0, ErrorCode::AmountIsZero);
+        let clock = Clock::get()?;
         let reactor = &mut ctx.accounts.reactor;
 
         let reserve_before_tokens = load_token_account(&ctx.accounts.base_vault)?.amount;
@@ -164,12 +199,28 @@ pub mod stablecoin {
         // Bootstrap/Fission logic
         let (neutron_out_tokens, proton_out_tokens) =
             if reserve_before_tokens == 0 && s_circ_tokens == 0 && s_bull_tokens == 0 {
-                const BOOTSTRAP_RESERVE_RATIO_WAD: u128 = WAD * 4; // 400% ( For Hackathon demo purposes only )
+                let price_update = &ctx.accounts.price_update;
 
-                let neutron_out_wad = mul_div(net_wad, WAD, BOOTSTRAP_RESERVE_RATIO_WAD)?;
-                let proton_out_wad = mul_div(net_wad, WAD, BOOTSTRAP_RESERVE_RATIO_WAD)?;
-                let neutron_out = wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
-                let proton_out = wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
+                let feed_id = get_feed_id_from_hex(&reactor.price_feed_id)?;
+                let price = price_update.get_price_no_older_than(&clock, MAXIMUM_AGE, &feed_id)?;
+                let base_price_wad = convert_pyth_price_to_wad(price.price, price.exponent)?;
+                require!(base_price_wad > 0, ErrorCode::InvalidPriceValue);
+
+                let deposit_value_wad = mul_div(net_wad, base_price_wad, WAD)?;
+                require!(deposit_value_wad > 0, ErrorCode::AmountTooSmall);
+
+                let neutron_value_wad = mul_div(deposit_value_wad, 1, 3)?;
+                require!(neutron_value_wad > 0, ErrorCode::AmountTooSmall);
+
+                let base_for_neutron_wad = mul_div(neutron_value_wad, WAD, base_price_wad)?;
+                require!(base_for_neutron_wad > 0, ErrorCode::AmountTooSmall);
+                let proton_base_wad = net_wad
+                    .checked_sub(base_for_neutron_wad)
+                    .ok_or(error!(ErrorCode::MathOverflow))?;
+                require!(proton_base_wad > 0, ErrorCode::AmountTooSmall);
+
+                let neutron_out = wad_to_tokens(neutron_value_wad, reactor.neutron_decimals)?;
+                let proton_out = wad_to_tokens(proton_base_wad, reactor.proton_decimals)?;
 
                 (neutron_out, proton_out)
             } else {
@@ -185,12 +236,6 @@ pub mod stablecoin {
 
                 (neutron_out, proton_out)
             };
-
-            require!( neutron_out_tokens > 0 || proton_out_tokens > 0, ErrorCode::AmountTooSmall);
-            let neutron_out = wad_to_tokens(neutron_out_wad, reactor.neutron_decimals)?;
-            let proton_out = wad_to_tokens(proton_out_wad, reactor.proton_decimals)?;
-            (neutron_out, proton_out)
-        };
 
         require!(neutron_out_tokens > 0 || proton_out_tokens > 0, ErrorCode::AmountTooSmall);
 
@@ -560,6 +605,10 @@ pub mod stablecoin {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct InitializeParams {
     pub vault_name: String,
+    pub base_asset_name: String,
+    pub base_asset_symbol: String,
+    pub pegged_asset_name: String,
+    pub pegged_asset_symbol: String,
     pub fission_fee_wad: u128,
     pub fusion_fee_wad: u128,
     pub critical_reserve_ratio_wad: u128, 
@@ -599,8 +648,6 @@ pub struct Initialize<'info> {
     pub base_vault: Account<'info, TokenAccount>,
     pub neutron_mint: Account<'info, Mint>,
     pub proton_mint: Account<'info, Mint>,
-    /// CHECK: validated in handler
-    pub treasury_authority: UncheckedAccount<'info>,
     #[account(mut)]
     pub treasury_base_account: Account<'info, TokenAccount>,
     pub system_program: Program<'info, System>,
@@ -609,7 +656,7 @@ pub struct Initialize<'info> {
 
 #[derive(Accounts)]
 pub struct SetBetaParams<'info> {
-    #[account(mut, has_one = treasury_authority)]
+    #[account(mut)]
     pub reactor: Account<'info, Reactor>,
     pub treasury_authority: Signer<'info>,
 }
@@ -652,6 +699,7 @@ pub struct Fission<'info> {
     /// CHECK: validated in handler via has_one constraint
     #[account(mut)]
     pub treasury_base_account: AccountInfo<'info>,
+    pub price_update: Account<'info, PriceUpdateV2>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -774,6 +822,10 @@ pub struct TransmuteMinus<'info> {
 pub struct Reactor {
     pub authority_bump: u8,
     pub vault_name: String,
+    pub base_asset_name: String,
+    pub base_asset_symbol: String,
+    pub pegged_asset_name: String,
+    pub pegged_asset_symbol: String,
 
     pub base_mint: Pubkey,
     pub base_vault: Pubkey,
@@ -781,7 +833,6 @@ pub struct Reactor {
     pub proton_mint: Pubkey,
 
     pub price_feed_id: String, 
-    pub treasury_authority: Pubkey,
     pub treasury_base_account: Pubkey,
 
     pub fission_fee_wad: u128,            // Φ↓
@@ -804,18 +855,24 @@ impl Reactor {
     pub const MAX_VAULT_NAME: usize = 64;
     pub const MAX_PRICE_FEED_ID: usize = 70; // "0x" + hex + buffer
     pub const MAX_DECIMALS: u8 = 18;
+    pub const MAX_ASSET_NAME: usize = 64;
+    pub const MAX_ASSET_SYMBOL: usize = 16;
     pub const AUTHORITY_PDA_SEED: &'static [u8] = b"reactor-authority";
 
     pub const SPACE: usize =
-        8 + 4 + Self::MAX_VAULT_NAME
-          + 4 + Self::MAX_PRICE_FEED_ID
-          + 1
-          + 32 * 7
-          + 16 * 7
-          + 16
-          + 8
-          + 3
-          + 32;
+        8 // discriminator
+        + 1 // authority_bump
+        + 4 + Self::MAX_VAULT_NAME
+        + 4 + Self::MAX_ASSET_NAME
+        + 4 + Self::MAX_ASSET_SYMBOL
+        + 4 + Self::MAX_ASSET_NAME
+        + 4 + Self::MAX_ASSET_SYMBOL
+        + 32 * 5
+        + 4 + Self::MAX_PRICE_FEED_ID
+        + 16 * 7
+        + 16
+        + 8
+        + 3;
 
     fn validate_decimals(&self, decimals: u8) -> Result<()> {
         require!(decimals <= Self::MAX_DECIMALS, ErrorCode::InvalidDecimals);
@@ -1187,6 +1244,10 @@ pub enum ErrorCode {
     InvalidTreasuryAccount,
     #[msg("Invalid treasury authority")]
     InvalidTreasuryAuthority,
+    #[msg("Missing or invalid price update account")]
+    MissingPriceUpdate,
+    #[msg("Invalid asset metadata")]
+    InvalidAssetMetadata,
     #[msg("Invalid or mismatched price account")]
     InvalidPriceAccount,
     #[msg("No recent price available from oracle")]
