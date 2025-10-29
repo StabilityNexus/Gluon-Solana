@@ -6,10 +6,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-Stablecoin = "AXtZmZ41Eq7NusPoEbFw2k4haaXHQxBrCrcg4y1oW7Eh"
+Stablecoin = "2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1"
 
 [programs.devnet]
-Stablecoin = "AXtZmZ41Eq7NusPoEbFw2k4haaXHQxBrCrcg4y1oW7Eh"
+Stablecoin = "2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1"
 
 [registry]
 url = "https://api.apr.dev"

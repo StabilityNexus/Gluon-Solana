@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/stablecoin.json`.
  */
 export type Stablecoin = {
-  "address": "AXtZmZ41Eq7NusPoEbFw2k4haaXHQxBrCrcg4y1oW7Eh",
+  "address": "2JKDPiVwn2yf2zGw8rqX5hVLv3NUdmfLjcQBsFNbDwn1",
   "metadata": {
     "name": "stablecoin",
     "version": "0.1.0",
@@ -15,11 +15,6 @@ export type Stablecoin = {
   "instructions": [
     {
       "name": "fission",
-      "docs": [
-        "Fission: user deposits base, gets neutrons+protons in proportion",
-        "to pre-fission S◦/R and S•/R, minus Φ↓ fee.",
-        "Bootstrap logic kept as-is for first deposit."
-      ],
       "discriminator": [
         106,
         52,
@@ -113,6 +108,9 @@ export type Stablecoin = {
           ]
         },
         {
+          "name": "priceUpdate"
+        },
+        {
           "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
@@ -127,8 +125,7 @@ export type Stablecoin = {
     {
       "name": "fusion",
       "docs": [
-        "Fusion: user returns the exact pro-rata bundle of neutrons+protons,",
-        "gets back base minus Φ↑."
+        "Fusion: user returns the exact pro-rata bundle of neutrons+protons"
       ],
       "discriminator": [
         206,
@@ -304,9 +301,6 @@ export type Stablecoin = {
           "name": "protonMint"
         },
         {
-          "name": "treasuryAuthority"
-        },
-        {
           "name": "treasuryBaseAccount",
           "writable": true
         },
@@ -349,10 +343,7 @@ export type Stablecoin = {
         },
         {
           "name": "treasuryAuthority",
-          "signer": true,
-          "relations": [
-            "reactor"
-          ]
+          "signer": true
         }
       ],
       "args": [
@@ -369,10 +360,7 @@ export type Stablecoin = {
     {
       "name": "transmuteNeutronToProton",
       "docs": [
-        "β⁻: neutron -> proton.",
-        "Burn neutrons, value them in base using P◦,",
-        "apply (1 - φβ-(τ)),",
-        "then buy protons at P•."
+        "β⁻: neutron -> proton. apply (1 - φβ-(τ)),"
       ],
       "discriminator": [
         5,
@@ -473,10 +461,7 @@ export type Stablecoin = {
     {
       "name": "transmuteProtonToNeutron",
       "docs": [
-        "β⁺: proton -> neutron.",
-        "Burn protons, value them in base using P•,",
-        "apply (1 - φβ+(τ)),",
-        "then buy neutrons at P◦."
+        "β⁺: proton -> neutron. apply (1 - φβ+(τ)),"
       ],
       "discriminator": [
         1,
@@ -728,76 +713,86 @@ export type Stablecoin = {
     },
     {
       "code": 6011,
+      "name": "missingPriceUpdate",
+      "msg": "Missing or invalid price update account"
+    },
+    {
+      "code": 6012,
+      "name": "invalidAssetMetadata",
+      "msg": "Invalid asset metadata"
+    },
+    {
+      "code": 6013,
       "name": "invalidPriceAccount",
       "msg": "Invalid or mismatched price account"
     },
     {
-      "code": 6012,
+      "code": 6014,
       "name": "priceNotAvailable",
       "msg": "No recent price available from oracle"
     },
     {
-      "code": 6013,
+      "code": 6015,
       "name": "invalidPriceValue",
       "msg": "Oracle price is not positive"
     },
     {
-      "code": 6014,
+      "code": 6016,
       "name": "amountTooSmall",
       "msg": "Amount too small after applying fees or conversions"
     },
     {
-      "code": 6015,
+      "code": 6017,
       "name": "zeroReserve",
       "msg": "Reserve balance is zero"
     },
     {
-      "code": 6016,
+      "code": 6018,
       "name": "zeroSupply",
       "msg": "Supply is zero"
     },
     {
-      "code": 6017,
+      "code": 6019,
       "name": "accountDataBorrowFailed",
       "msg": "Failed to borrow account data"
     },
     {
-      "code": 6018,
+      "code": 6020,
       "name": "invalidTokenAccount",
       "msg": "Invalid token account data"
     },
     {
-      "code": 6019,
+      "code": 6021,
       "name": "invalidMintAccount",
       "msg": "Invalid mint account data"
     },
     {
-      "code": 6020,
+      "code": 6022,
       "name": "valueTooLarge",
       "msg": "Value exceeds supported range"
     },
     {
-      "code": 6021,
+      "code": 6023,
       "name": "exponentTooLarge",
       "msg": "Exponent exceeds supported range for pow10"
     },
     {
-      "code": 6022,
+      "code": 6024,
       "name": "missingBump",
       "msg": "Missing PDA bump"
     },
     {
-      "code": 6023,
+      "code": 6025,
       "name": "invalidBetaParam",
       "msg": "Invalid beta parameters"
     },
     {
-      "code": 6024,
+      "code": 6026,
       "name": "invalidVaultName",
       "msg": "Invalid vault name"
     },
     {
-      "code": 6025,
+      "code": 6027,
       "name": "invalidPriceFeedId",
       "msg": "Invalid price feed ID"
     }
@@ -921,6 +916,22 @@ export type Stablecoin = {
             "type": "string"
           },
           {
+            "name": "baseAssetName",
+            "type": "string"
+          },
+          {
+            "name": "baseAssetSymbol",
+            "type": "string"
+          },
+          {
+            "name": "peggedAssetName",
+            "type": "string"
+          },
+          {
+            "name": "peggedAssetSymbol",
+            "type": "string"
+          },
+          {
             "name": "fissionFeeWad",
             "type": "u128"
           },
@@ -929,7 +940,7 @@ export type Stablecoin = {
             "type": "u128"
           },
           {
-            "name": "targetReserveRatioWad",
+            "name": "criticalReserveRatioWad",
             "type": "u128"
           },
           {
@@ -1065,6 +1076,22 @@ export type Stablecoin = {
             "type": "string"
           },
           {
+            "name": "baseAssetName",
+            "type": "string"
+          },
+          {
+            "name": "baseAssetSymbol",
+            "type": "string"
+          },
+          {
+            "name": "peggedAssetName",
+            "type": "string"
+          },
+          {
+            "name": "peggedAssetSymbol",
+            "type": "string"
+          },
+          {
             "name": "baseMint",
             "type": "pubkey"
           },
@@ -1085,10 +1112,6 @@ export type Stablecoin = {
             "type": "string"
           },
           {
-            "name": "treasuryAuthority",
-            "type": "pubkey"
-          },
-          {
             "name": "treasuryBaseAccount",
             "type": "pubkey"
           },
@@ -1101,7 +1124,7 @@ export type Stablecoin = {
             "type": "u128"
           },
           {
-            "name": "targetReserveRatioWad",
+            "name": "criticalReserveRatioWad",
             "type": "u128"
           },
           {
